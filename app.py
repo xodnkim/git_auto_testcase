@@ -1,75 +1,166 @@
 import streamlit as st
+import requests
+from google import genai
+from urllib.parse import urlparse, quote
 import time
 
-# --- 1. 페이지 설정 ---
-st.set_page_config(page_title="QA 리스크 분석 포트폴리오", page_icon="🤖")
+# --- 1. 프롬프트 기본값 설정 ---
+DEFAULT_PROMPT = """너는 대한민국 1인 방송 플랫폼 'SOOP'의 '모바일 앱 QA팀 리스크헷징 파트' 직원이야.
+모바일 앱 QA 전문가로서 아래 데이터를 분석하여 QA 리스크 보고서를 작성해줘.
 
-# --- 2. 사이드바 (설정) ---
+### [필수 답변 양식] ###
+1. 🚩 **핵심 변경 요약**: (수정된 기능의 핵심을 1줄로 요약)
+2. ⚠️ **사이드 이펙트 분석**:
+   - 영향 범위: (예: 플레이어, 채팅창, UI 레이아웃 등)
+   - 리스크 내용: (코드 변경으로 인해 발생 가능한 구체적인 결함 시나리오)
+3. 🔍 **QA 중점 테스트 포인트 (Atomic Test Cases)**:
+   - [우선순위] [테스트 대상] - [검증 내용]
+
+### [분석 지침] ###
+- 반드시 위의 '필수 답변 양식'의 헤더와 구조를 유지할 것.
+- SOOP 서비스의 특성(실시간성, 멀티 플랫폼, 플레이어 제스처 등)을 고려할 것.
+
+### [데이터] ###
+커밋 메시지: {commits}
+코드 변경점: {diffs}"""
+
+# --- 2. 페이지 설정 ---
+st.set_page_config(page_title="QA 리스크 분석 포트폴리오", page_icon="🤖", layout="wide")
+
+# --- 3. 도우미 함수들 ---
+
+def _parse_gitlab_link(link):
+    try:
+        parsed = urlparse(link)
+        if "/-/" not in parsed.path: return None
+        project_path, tail = parsed.path.split("/-/", 1)
+        project_path = project_path.strip("/")
+        tail = tail.strip("/")
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        if tail.startswith("commit/"):
+            sha = tail.split("/", 1)[1].split("/")[0]
+            return {"project_path": project_path, "type": "commit", "id": sha, "base_url": base_url}
+        if tail.startswith("merge_requests/"):
+            iid = tail.split("/", 1)[1].split("/")[0]
+            return {"project_path": project_path, "type": "mr", "id": iid, "base_url": base_url}
+    except: return None
+    return None
+
+def _gitlab_get(url, token):
+    headers = {"PRIVATE-TOKEN": token}
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        return res.json() if res.status_code == 200 else None
+    except: return None
+
+def fetch_gitlab_data(parsed, token):
+    project_encoded = quote(parsed["project_path"], safe="")
+    base = parsed["base_url"]
+    if parsed["type"] == "mr":
+        c_url = f"{base}/api/v4/projects/{project_encoded}/merge_requests/{parsed['id']}/commits"
+        d_url = f"{base}/api/v4/projects/{project_encoded}/merge_requests/{parsed['id']}/diffs"
+        commits = _gitlab_get(c_url, token)
+        diffs = _gitlab_get(d_url, token)
+        if not commits or not diffs: return None, None
+        c_text = "\n".join([f"• {c['title']}" for c in commits])
+        d_text = "\n".join([f"📄 {d['new_path']}\n{d['diff']}" for d in diffs])
+    else:
+        c_url = f"{base}/api/v4/projects/{project_encoded}/repository/commits/{parsed['id']}"
+        d_url = f"{base}/api/v4/projects/{project_encoded}/repository/commits/{parsed['id']}/diff"
+        commit = _gitlab_get(c_url, token)
+        diffs = _gitlab_get(d_url, token)
+        if not commit or not diffs: return None, None
+        c_text = f"• {commit['title']}"
+        d_text = "\n".join([f"📄 {d['new_path']}\n{d['diff']}" for d in diffs])
+    return c_text, d_text
+
+# --- 4. 사이드바 UI ---
 with st.sidebar:
-    st.title("⚙️ 설정")
-    st.info("실제 기능을 사용하려면 아래 정보가 필요합니다.")
-    user_gemini_key = st.text_input("Gemini API Key", type="password", help="Google AI Studio에서 발급받은 키를 입력하세요.")
-    st.markdown("---")
-    st.caption("© 2026 QA Automation Portfolio")
+    st.title("🔐 API 키 설정")
+    st.caption("외부 사용자를 위한 개인 키 입력란입니다.")
+    gemini_key = st.text_input("Gemini API Key", type="password")
+    gitlab_token = st.text_input("GitLab Personal Token", type="password")
+    st.divider()
+    st.markdown("### 🛠️ 사용 스택\n- Python / Streamlit\n- Google Gemini 2.0 Flash\n- GitLab REST API")
 
-# --- 3. 메인 화면 구성 (탭 사용) ---
-tab1, tab2 = st.tabs(["🏠 프로젝트 소개", "🔍 AI 리스크 분석기 체험"])
+# --- 5. 메인 UI ---
+tab1, tab2 = st.tabs(["🏠 프로젝트 소개", "🔍 리스크 분석 실행"])
 
-# [탭 1: 프로젝트 소개]
+# [탭 1: 소개]
 with tab1:
-    st.title("🤖 AI 기반 QA 리스크 헷징 시스템")
-    st.subheader("업무 효율화를 위한 GitLab MR 분석 자동화 도구")
-    
+    st.title("🚀 AI QA Risk Hedging System")
     st.markdown("""
-    ### 📝 프로젝트 배경
-    - **문제점**: 수많은 Merge Request(MR)의 코드 변경점을 매번 수동으로 확인하여 리스크를 도출하는 데 많은 시간 소요.
-    - **해결책**: Gemini 2.0 AI를 활용해 코드 Diff를 분석하고, QA 관점의 사이드 이펙트와 핵심 테스트 포인트를 자동으로 생성.
-    - **기대 효과**: 분석 시간 70% 단축 및 휴먼 에러 방지.
+    ### 💡 프로젝트 개요
+    이 시스템은 개발 과정에서 발생하는 **코드 변경점을 실시간으로 분석하여 QA 리스크를 도출**합니다. 
+    7년 차 QA 엔지니어의 도메인 지식을 프롬프트로 구조화하여, 누구나 전문가 수준의 리스크 리포트를 얻을 수 있도록 설계되었습니다.
+    
+    - **효율성**: 수작업으로 진행되던 Diff 분석 시간을 획기적으로 단축
+    - **정확성**: AI를 통한 사이드 이펙트 교차 검증
+    - **확장성**: 사용자 정의 프롬프트를 통한 다양한 분석 모드 지원
     """)
-    
-    st.image("https://images.unsplash.com/photo-1551288049-bbbda536ad37?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80", caption="QA 분석 프로세스 시각화")
+    st.info("오른쪽 '리스크 분석 실행' 탭에서 실제 기능을 체험해 볼 수 있습니다.")
 
-# [탭 2: 실제 도구 체험]
+# [탭 2: 분석기]
 with tab2:
-    st.header("🔍 분석 도구 체험하기")
+    st.header("🔍 실시간 데이터 분석")
     
-    # 예시 데이터 (체험용)
-    sample_diff = """
-    @@ -15,5 +15,6 @@ def process_payment(amount):
-    -    if amount > 0:
-    +    if amount > 0 and user.is_verified():
-             return gateway.pay(amount)
-    +    else:
-    +        raise ValueError("Invalid payment request")
-    """
+    # 분석 모드 선택
+    mode = st.radio("실행 모드 선택", ["데모 데이터 체험", "실제 GitLab 연동"], horizontal=True)
     
-    mode = st.radio("모드 선택", ["데모 데이터로 확인 (즉시)", "실제 GitLab 링크 분석 (API 키 필요)"])
+    # 1. 프롬프트 커스텀 영역 (도움말 아이콘 포함)
+    with st.expander("📝 AI 분석 프롬프트 설정", expanded=False):
+        user_prompt = st.text_area(
+            "AI 지시문 작성",
+            value=DEFAULT_PROMPT,
+            height=350,
+            help=f"이곳에서 AI의 페르소나와 답변 형식을 자유롭게 수정할 수 있습니다.\n\n[기본 프롬프트 예시]\n{DEFAULT_PROMPT}"
+        )
+        st.caption("💡 `{commits}`와 `{diffs}`는 실제 데이터로 자동 치환되는 예약어입니다.")
 
-    if mode == "데모 데이터로 확인 (즉시)":
-        target_url = st.text_input("GitLab 링크 (예시)", value="https://gitlab.com/demo/project/-/merge_requests/123", disabled=True)
+    # 2. 링크 입력 및 분석 실행
+    if mode == "실제 GitLab 연동":
+        link = st.text_input("GitLab MR 또는 Commit 링크 입력")
+        if st.button("분석 시작"):
+            if not gemini_key or not gitlab_token:
+                st.error("사이드바에 API 키와 토큰을 입력해주세요.")
+            elif not link:
+                st.warning("분석할 링크를 입력해주세요.")
+            else:
+                parsed = _parse_gitlab_link(link)
+                if not parsed:
+                    st.error("올바른 GitLab 링크 형식이 아닙니다.")
+                else:
+                    with st.spinner("GitLab 데이터를 수집하고 AI가 분석 중입니다..."):
+                        c_text, d_text = fetch_gitlab_data(parsed, gitlab_token)
+                        if not c_text:
+                            st.error("데이터를 가져오지 못했습니다. 링크나 토큰 권한을 확인하세요.")
+                        else:
+                            try:
+                                client = genai.Client(api_key=gemini_key)
+                                final_prompt = user_prompt.replace("{commits}", c_text).replace("{diffs}", d_text)
+                                response = client.models.generate_content(model='gemini-2.0-flash', contents=final_prompt)
+                                
+                                st.success("분석 완료!")
+                                st.markdown("---")
+                                st.markdown(response.text)
+                                st.download_button("리포트 다운로드", response.text, f"QA_Report_{parsed['id']}.txt")
+                            except Exception as e:
+                                st.error(f"AI 분석 중 오류 발생: {e}")
+
+    else: # 데모 데이터 모드
         if st.button("데모 분석 시작"):
-            with st.spinner("AI가 샘플 데이터를 분석 중입니다..."):
-                time.sleep(2) # 분석하는 느낌 전달
-                st.success("✅ 분석 완료!")
+            with st.spinner("데모 분석 중..."):
+                time.sleep(1.5)
+                st.success("✅ [데모] 분석 결과입니다.")
                 st.markdown("""
                 ### 🚩 **핵심 변경 요약**:
-                결제 처리 로직에 사용자 인증(Verification) 절차 추가 및 예외 처리 강화.
+                로그인 화면의 레이아웃 구조 변경 및 SNS 로그인 버튼 추가.
 
                 ### ⚠️ **사이드 이펙트 분석**:
-                - **영향 범위**: 결제 모듈, 회원 인증 시스템.
-                - **리스크 내용**: 인증되지 않은 사용자가 결제 시도 시 적절한 UI 안내가 없는 경우 무한 로딩이나 앱 크래시 발생 가능성.
+                - **영향 범위**: 로그인 페이지 UI, 카카오/네이버 SDK 연동부.
+                - **리스크 내용**: 저사양 기기에서 버튼 겹침 현상 발생 가능성 및 SDK 초기화 실패 시 앱 종료 리스크.
 
                 ### 🔍 **QA 중점 테스트 포인트**:
-                - [P0] 결제 시도 - 인증된 사용자의 정상 결제 여부 확인
-                - [P0] 결제 시도 - 미인증 사용자의 차단 및 에러 메시지 노출 확인
-                - [P1] 인증 상태 변경 - 결제 도중 인증이 만료되는 엣지 케이스 확인
+                - [P0] 로그인 - 카카오 로그인 클릭 시 인증 창 정상 호출 여부
+                - [P1] UI - 다크모드 환경에서 신규 버튼 텍스트 가독성 확인
                 """)
-
-    else:
-        gitlab_link = st.text_input("GitLab MR/Commit 링크를 입력하세요")
-        if st.button("실제 분석 시작"):
-            if not user_gemini_key:
-                st.warning("사이드바에 Gemini API Key를 입력해주세요!")
-            else:
-                st.info("입력하신 키와 링크를 통해 실제 분석을 수행하는 로직이 여기에 들어갑니다.")
-                # 여기에 기존의 GitLab API 및 Gemini 호출 로직을 연결하면 됩니다.
