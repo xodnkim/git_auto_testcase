@@ -5,13 +5,13 @@ from urllib.parse import urlparse, quote
 import time
 
 # --- 1. 페이지 및 프롬프트 설정 ---
-st.set_page_config(page_title="QA 리스크 분석기 (안정화)", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="QA 분석기 (최종본)", page_icon="🛡️", layout="wide")
 
 DEFAULT_PROMPT = """너는 QA 전문가야. 아래 코드 변경점을 분석하여 QA 리스크 보고서를 작성해줘.
 1. 🔑 핵심 요약 / 2. 🚨 사이드 이펙트 / 3. ⭐ 테스트 포인트 / 4. 🛅 TC
 {commits} / {diffs}"""
 
-# --- 2. 데이터 슬림화 (무료 등급 429 에러 방어) ---
+# --- 2. 데이터 최적화 (429 에러 방지) ---
 def slim_filter(diff_list):
     ALLOWED_EXT = ('.py', '.js', '.ts', '.java', '.kt', '.swift', '.vue', '.html')
     filtered = []
@@ -19,13 +19,12 @@ def slim_filter(diff_list):
     for d in diff_list:
         path = d.get('new_path', 'unknown')
         if not any(path.endswith(ext) for ext in ALLOWED_EXT): continue
-        # 파일당 800자 제한 (매우 타이트하게)
         content = d.get('diff', '')[:800]
         chunk = f"📄 {path}\n{content}\n"
-        if curr_len + len(chunk) > 6000: break 
+        if curr_len + len(chunk) > 5000: break # 무료 티어 안전선
         filtered.append(chunk)
         curr_len += len(chunk)
-    return "\n".join(filtered) if filtered else "핵심 로직 변경 없음"
+    return "\n".join(filtered) if filtered else "소스 코드 변경 없음"
 
 # --- 3. GitLab 데이터 수집 ---
 def _parse_link(link):
@@ -47,75 +46,61 @@ def fetch_data(parsed, token):
     base = parsed["base"]
     try:
         if parsed["type"] == "mr":
-            c_res = requests.get(f"{base}/api/v4/projects/{enc_path}/merge_requests/{parsed['id']}/commits", headers=headers).json()
-            d_res = requests.get(f"{base}/api/v4/projects/{enc_path}/merge_requests/{parsed['id']}/diffs", headers=headers).json()
-            c_text = "\n".join([c['title'] for c in c_res])
-            d_text = slim_filter(d_res)
+            c_res = requests.get(f"{base}/api/v4/projects/{enc_path}/merge_requests/{parsed['id']}/commits", headers=headers, timeout=10).json()
+            d_res = requests.get(f"{base}/api/v4/projects/{enc_path}/merge_requests/{parsed['id']}/diffs", headers=headers, timeout=10).json()
+            c_t = "\n".join([c['title'] for c in c_res])
+            d_t = slim_filter(d_res)
         else:
-            c_res = requests.get(f"{base}/api/v4/projects/{enc_path}/repository/commits/{parsed['id']}", headers=headers).json()
-            d_res = requests.get(f"{base}/api/v4/projects/{enc_path}/repository/commits/{parsed['id']}/diff", headers=headers).json()
-            c_text = c_res['title']
+            c_res = requests.get(f"{base}/api/v4/projects/{enc_path}/repository/commits/{parsed['id']}", headers=headers, timeout=10).json()
+            d_res = requests.get(f"{base}/api/v4/projects/{enc_path}/repository/commits/{parsed['id']}/diff", headers=headers, timeout=10).json()
+            c_t = c_res['title']
             d_text = slim_filter(d_res)
-        return c_text, d_text
+        return c_t, d_text
     except: return None, None
 
-# --- 4. 사이드바 API 설정 ---
+# --- 4. 분석 실행 및 모델 폴백(Fallback) 로직 ---
 with st.sidebar:
-    st.title("🔐 gittest API 설정")
-    # 공백 포함 실수를 방지하기 위해 .strip() 사용
+    st.title("🔐 gittest 설정")
     g_key = st.text_input("Gemini API Key", type="password").strip()
     gl_token = st.text_input("GitLab Token", type="password").strip()
-    st.divider()
-    
-    # 모델 선택 로직 (목록 로드 실패 시에도 수동 선택 가능하게)
-    safe_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-lite"]
-    selected_model = safe_models[0]
 
-    if g_key:
-        try:
-            client = genai.Client(api_key=g_key)
-            api_models = [m.name.replace("models/", "") for m in client.models.list() if "generateContent" in m.supported_methods]
-            if api_models:
-                selected_model = st.selectbox("사용 가능한 모델 선택", api_models)
-                st.success("✅ gittest 프로젝트 모델 로드 완료")
-            else:
-                selected_model = st.selectbox("모델 수동 선택 (목록 비어있음)", safe_models)
-        except Exception as e:
-            st.warning("⚠️ 모델 목록 로드 실패 (수동 선택 모드)")
-            selected_model = st.selectbox("호환 모델 수동 선택", safe_models)
-            with st.expander("디버깅 정보"):
-                st.code(str(e))
+st.title("🛡️ QA 리스크 헷징 자동화")
+link = st.text_input("GitLab 링크 입력 (MR/Commit)")
 
-# --- 5. 분석 실행 ---
-tab1, tab2 = st.tabs(["🏠 소개", "🔍 분석 실행"])
-
-with tab2:
-    link = st.text_input("GitLab 링크 입력")
-    if st.button("🚀 리스크 분석 시작"):
-        if not (g_key and gl_token and link):
-            st.error("모든 정보를 입력해주세요.")
+if st.button("🚀 분석 시작"):
+    if not (g_key and gl_token and link):
+        st.error("모든 정보를 입력해주세요.")
+    else:
+        parsed = _parse_link(link)
+        if not parsed:
+            st.error("올바른 링크 형식이 아닙니다.")
         else:
-            parsed = _parse_link(link)
-            if not parsed:
-                st.error("GitLab 링크 형식이 올바르지 않습니다.")
-            else:
-                with st.spinner(f"AI({selected_model})가 코드를 읽고 있습니다..."):
-                    c_t, d_t = fetch_data(parsed, gl_token)
-                    if not c_t:
-                        st.error("GitLab 데이터를 불러오지 못했습니다. 토큰을 확인하세요.")
-                    else:
+            with st.spinner("AI가 분석을 시도하고 있습니다..."):
+                c_t, d_t = fetch_data(parsed, gl_token)
+                if not c_t:
+                    st.error("데이터 로드 실패")
+                else:
+                    client = genai.Client(api_key=g_key)
+                    # 시도할 모델 순서 (2026년 기준)
+                    candidate_models = ['gemini-1.5-flash-latest', 'gemini-3-flash', 'gemini-1.5-flash']
+                    
+                    response = None
+                    error_msg = ""
+                    
+                    for model_name in candidate_models:
                         try:
-                            client = genai.Client(api_key=g_key)
-                            final_p = DEFAULT_PROMPT.format(commits=c_t, diffs=d_t)
                             response = client.models.generate_content(
-                                model=selected_model,
-                                contents=final_p
+                                model=model_name,
+                                contents=DEFAULT_PROMPT.format(commits=c_t, diffs=d_t)
                             )
-                            st.success("✅ 분석 완료!")
-                            st.markdown("---")
-                            st.markdown(response.text)
+                            if response: break
                         except Exception as e:
-                            if "429" in str(e):
-                                st.error("⚠️ 쿼터 초과! 1분만 기다려주세요.")
-                            else:
-                                st.error(f"분석 중 오류 발생: {e}")
+                            error_msg = str(e)
+                            continue
+                    
+                    if response:
+                        st.success(f"✅ 분석 완료! (사용 모델: {model_name})")
+                        st.markdown("---")
+                        st.markdown(response.text)
+                    else:
+                        st.error(f"모든 모델 시도 실패. 상세 에러: {error_msg}")
