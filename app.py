@@ -139,7 +139,7 @@ with tab2:
                             try:
                                 client = genai.Client(api_key=gemini_key)
                                 final_prompt = user_prompt.replace("{commits}", c_text).replace("{diffs}", d_text)
-                                response = client.models.generate_content(model='gemini-2.0-flash', contents=final_prompt)
+                                response = client.models.generate_content(model='gemini-1.5-flash', contents=final_prompt)
                                 
                                 st.success("분석 완료!")
                                 st.markdown("---")
@@ -165,3 +165,4 @@ with tab2:
                 - [P0] 로그인 - 카카오 로그인 클릭 시 인증 창 정상 호출 여부
                 - [P1] UI - 다크모드 환경에서 신규 버튼 텍스트 가독성 확인
                 """)
+
