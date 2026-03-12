@@ -4,153 +4,102 @@ from google import genai
 from urllib.parse import urlparse, quote
 import time
 
-# --- 1. 프롬프트 기본값 설정 ---
-DEFAULT_PROMPT = """너는 모바일 앱 QA 전문가야. 아래 코드 변경점을 분석하여 QA 리스크 보고서를 작성해줘.
+# --- 1. 프롬프트 및 페이지 설정 ---
+DEFAULT_PROMPT = """너는 QA 전문가야. 아래 코드 변경점을 분석하여 QA 리스크 보고서를 작성해줘.
+1. 🔑 핵심 요약 / 2. 🚨 사이드 이펙트 / 3. ⭐ 테스트 포인트 / 4. 🛅 TC
+{commits} / {diffs}"""
 
-### [필수 답변 양식] ###
-1. 🔑 **핵심 변경 요약**: (수정된 기능의 핵심을 1줄 요약)
-2. 🚨 **사이드 이펙트 분석**:
-   - 영향 범위: (예: 로그인, 채팅창, UI 등)
-   - 리스크 내용: (발생 가능한 구체적인 결함 시나리오)
-3. ⭐ **QA 중점 테스트 포인트**:
-   - [우선순위] [대상] - [검증 내용]
-4. 🛅 **테스트 케이스**:
-   - [경로] [사전조건] [동작] [예상결과]
+st.set_page_config(page_title="QA 분석기: 모델 자동감지", page_icon="🛡️", layout="wide")
 
-### [데이터] ###
-커밋 메시지: {commits}
-코드 변경점: {diffs}"""
-
-# --- 2. 페이지 설정 ---
-st.set_page_config(page_title="QA 리스크 분석기 PRO", page_icon="💻", layout="wide")
-
-# --- 3. 도우미 함수들 (필터링 및 API) ---
-
-def slim_filter_diffs(diff_list):
-    """무료 티어의 429 에러를 방지하기 위해 데이터를 슬림하게 만듭니다."""
-    ALLOWED_EXT = ('.py', '.js', '.ts', '.java', '.kt', '.swift', '.html', '.css', '.vue')
+# --- 2. 데이터 슬림화 필터 (429 에러 방어) ---
+def slim_filter(diff_list):
+    ALLOWED_EXT = ('.py', '.js', '.ts', '.java', '.kt', '.swift', '.vue')
     filtered = []
-    current_len = 0
-    MAX_CHARS = 10000 # 무료 티어 안전선
-
+    curr_len = 0
     for d in diff_list:
         path = d.get('new_path', 'unknown')
-        if not any(path.endswith(ext) for ext in ALLOWED_EXT):
-            continue
-        
-        # 파일당 최대 1,200자만 추출
-        content = d.get('diff', '')[:1200]
-        chunk = f"📄 파일: {path}\n{content}\n"
-        
-        if current_len + len(chunk) > MAX_CHARS:
-            filtered.append("...(데이터 초과로 중략)...")
-            break
+        if not any(path.endswith(ext) for ext in ALLOWED_EXT): continue
+        content = d.get('diff', '')[:1000]
+        chunk = f"📄 {path}\n{content}\n"
+        if curr_len + len(chunk) > 8000: break # 무료 티어 안전선
         filtered.append(chunk)
-        current_len += len(chunk)
-    
-    return "\n".join(filtered) if filtered else "분석할 소스 코드 변경점이 없습니다."
+        curr_len += len(chunk)
+    return "\n".join(filtered) if filtered else "핵심 로직 변경 없음"
 
-def _parse_gitlab_link(link):
+# --- 3. GitLab 데이터 수집 함수 ---
+def _parse_link(link):
     try:
         parsed = urlparse(link)
         if "/-/" not in parsed.path: return None
-        project_path, tail = parsed.path.split("/-/", 1)
-        project_path = project_path.strip("/")
-        base_url = f"{parsed.scheme}://{parsed.netloc}"
-        if tail.startswith("commit/"):
-            sha = tail.split("/", 1)[1].split("/")[0]
-            return {"project_path": project_path, "type": "commit", "id": sha, "base_url": base_url}
-        if tail.startswith("merge_requests/"):
-            iid = tail.split("/", 1)[1].split("/")[0]
-            return {"project_path": project_path, "type": "mr", "id": iid, "base_url": base_url}
+        path, tail = parsed.path.split("/-/", 1)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        if "commit/" in tail:
+            return {"path": path.strip("/"), "type": "commit", "id": tail.split("/")[-1], "base": base}
+        if "merge_requests/" in tail:
+            return {"path": path.strip("/"), "type": "mr", "id": tail.split("/")[-2], "base": base}
     except: return None
-    return None
 
-def _gitlab_get(url, token):
+def fetch_data(parsed, token):
     headers = {"PRIVATE-TOKEN": token}
+    enc_path = quote(parsed["path"], safe="")
+    base = parsed["base"]
     try:
-        res = requests.get(url, headers=headers, timeout=10)
-        return res.json() if res.status_code == 200 else None
-    except: return None
+        if parsed["type"] == "mr":
+            c_res = requests.get(f"{base}/api/v4/projects/{enc_path}/merge_requests/{parsed['id']}/commits", headers=headers).json()
+            d_res = requests.get(f"{base}/api/v4/projects/{enc_path}/merge_requests/{parsed['id']}/diffs", headers=headers).json()
+            c_text = "\n".join([c['title'] for c in c_res])
+            d_text = slim_filter(d_res)
+        else:
+            c_res = requests.get(f"{base}/api/v4/projects/{enc_path}/repository/commits/{parsed['id']}", headers=headers).json()
+            d_res = requests.get(f"{base}/api/v4/projects/{enc_path}/repository/commits/{parsed['id']}/diff", headers=headers).json()
+            c_text = c_res['title']
+            d_text = slim_filter(d_res)
+        return c_text, d_text
+    except: return None, None
 
-def fetch_gitlab_data(parsed, token):
-    project_encoded = quote(parsed["project_path"], safe="")
-    base = parsed["base_url"]
-    if parsed["type"] == "mr":
-        c_url = f"{base}/api/v4/projects/{project_encoded}/merge_requests/{parsed['id']}/commits"
-        d_url = f"{base}/api/v4/projects/{project_encoded}/merge_requests/{parsed['id']}/diffs"
-        commits = _gitlab_get(c_url, token)
-        diffs = _gitlab_get(d_url, token)
-        if not commits or not diffs: return None, None
-        c_text = "\n".join([f"• {c['title']}" for c in commits])
-        d_text = slim_filter_diffs(diffs)
-    else:
-        c_url = f"{base}/api/v4/projects/{project_encoded}/repository/commits/{parsed['id']}"
-        d_url = f"{base}/api/v4/projects/{project_encoded}/repository/commits/{parsed['id']}/diff"
-        commit = _gitlab_get(c_url, token)
-        diffs = _gitlab_get(d_url, token)
-        if not commit or not diffs: return None, None
-        c_text = f"• {commit['title']}"
-        d_text = slim_filter_diffs(diffs)
-    return c_text, d_text
-
-# --- 4. 메인 UI 및 로직 ---
+# --- 4. 메인 UI 및 모델 감지 로직 ---
 with st.sidebar:
-    st.title("🔐 API 키 설정")
-    gemini_key = st.text_input("Gemini API Key", type="password")
-    gitlab_token = st.text_input("GitLab Personal Token", type="password")
+    st.title("🔐 API 설정")
+    g_key = st.text_input("Gemini API Key", type="password")
+    gl_token = st.text_input("GitLab Token", type="password")
     st.divider()
-    st.info("💡 429 에러 발생 시 1분 대기 후 다시 시도해 주세요.")
+    
+    # [핵심] 내 키가 쓸 수 있는 모델 목록 가져오기
+    selected_model = "gemini-1.5-flash" # 기본값
+    if g_key:
+        try:
+            client = genai.Client(api_key=g_key)
+            models = [m.name.replace("models/", "") for m in client.models.list() if "generateContent" in m.supported_methods]
+            selected_model = st.selectbox("사용 가능한 모델 선택", models, index=0)
+            st.success("✅ 모델 목록 로드 완료")
+        except:
+            st.error("❌ 모델 목록을 불러오지 못했습니다. 키를 확인하세요.")
 
-tab1, tab2 = st.tabs(["🏠 프로젝트 소개", "🔍 리스크 분석 실행"])
-
-with tab1:
-    st.title("🚀 QA Risk Analysis System")
-    st.markdown("코드 변경점을 실시간으로 분석하여 QA 리스크를 도출합니다.")
+# --- 5. 분석 실행 레이아웃 ---
+tab1, tab2 = st.tabs(["🏠 소개", "🔍 분석"])
 
 with tab2:
-    st.header("🔍 실시간 데이터 분석")
-    mode = st.radio("실행 모드 선택", ["데모 데이터 체험", "실제 GitLab 연동"], horizontal=True)
-    
-    with st.expander("📝 AI 분석 프롬프트 설정"):
-        user_prompt = st.text_area("AI 지시문 작성", value=DEFAULT_PROMPT, height=350)
-
-    if mode == "실제 GitLab 연동":
-        link = st.text_input("GitLab MR 또는 Commit 링크 입력")
-        if st.button("분석 시작"):
-            if not (gemini_key and gitlab_token and link):
-                st.error("API 키, 토큰, 링크를 모두 입력해주세요.")
+    link = st.text_input("GitLab 링크 (MR/Commit)")
+    if st.button("🚀 리스크 분석 시작"):
+        if not (g_key and gl_token and link):
+            st.error("모든 정보를 입력해주세요.")
+        else:
+            parsed = _parse_link(link)
+            if not parsed:
+                st.error("링크 형식이 잘못되었습니다.")
             else:
-                parsed = _parse_gitlab_link(link)
-                if not parsed:
-                    st.error("올바른 GitLab 링크 형식이 아닙니다.")
-                else:
-                    with st.spinner("데이터 분석 중..."):
-                        c_text, d_text = fetch_gitlab_data(parsed, gitlab_token)
-                        if not c_text:
-                            st.error("GitLab 데이터를 가져오지 못했습니다.")
-                        else:
-                            try:
-                                # 2026년 기준 가장 안정적인 1.5-flash 모델 사용
-                                client = genai.Client(api_key=gemini_key)
-                                final_p = user_prompt.format(commits=c_text, diffs=d_text)
-                                response = client.models.generate_content(
-                                    model='gemini-1.5-flash', 
-                                    contents=final_p
-                                )
-                                st.success("분석 완료!")
-                                st.markdown("---")
-                                st.markdown(response.text)
-                                st.download_button("리포트 다운로드", response.text, "QA_Report.txt")
-                            except Exception as e:
-                                if "429" in str(e):
-                                    st.error("⚠️ 사용량 초과! 1분만 기다려주세요.")
-                                elif "404" in str(e):
-                                    st.error("❌ 모델을 찾을 수 없습니다. 모델명을 확인하세요.")
-                                else:
-                                    st.error(f"오류 발생: {e}")
-    else:
-        if st.button("데모 분석 시작"):
-            st.info("✅ 데모 데이터로 분석 시뮬레이션을 시작합니다.")
-            time.sleep(1)
-            st.markdown("### 🔑 핵심 변경 요약\n로그인 화면 SNS 버튼 추가")
+                with st.spinner(f"AI({selected_model})가 분석 중..."):
+                    c_t, d_t = fetch_data(parsed, gl_token)
+                    if not c_t:
+                        st.error("GitLab 데이터 로드 실패")
+                    else:
+                        try:
+                            client = genai.Client(api_key=g_key)
+                            response = client.models.generate_content(
+                                model=selected_model,
+                                contents=DEFAULT_PROMPT.format(commits=c_t, diffs=d_t)
+                            )
+                            st.success("분석 완료!")
+                            st.markdown(response.text)
+                        except Exception as e:
+                            st.error(f"분석 오류: {e}")
