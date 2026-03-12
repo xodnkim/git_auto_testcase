@@ -147,10 +147,10 @@ with tab2:
                             try:
                                 client = genai.Client(api_key=gemini_key)
                                 # 2026년 기준 가장 안정적인 모델명 사용
-                                response = client.models.generate_content(
-                                    model='gemini-2.0-flash', 
-                                    contents=user_prompt.format(commits=c_text, diffs=d_text)
-                                )
+                                 response = client.models.generate_content(
+                                     model='gemini-1.5-flash', 
+                                     contents=user_prompt.format(commits=c_text, diffs=d_text)
+                                 )
                                 st.success("분석 완료!")
                                 st.markdown("---")
                                 st.markdown(response.text)
@@ -165,3 +165,4 @@ with tab2:
         if st.button("데모 분석 시작"):
             st.success("✅ 데모 모드입니다. (실제 요청 시 429 에러 방어 로직이 작동합니다.)")
             st.markdown("예시 결과: 로그인 UI 변경 시 사이드 이펙트 분석...")
+
