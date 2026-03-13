@@ -1,7 +1,54 @@
-if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
-    # 💡 제목과 탭을 배치하여 데모 페이지를 분리합니다.
-    st.title("🚀 QA 리스크 분석 및 TC 생성 툴")
+import streamlit as st
+import datetime
+import math
+from utils.parser import parse_vcs_link 
+from services.vcs_service import fetch_vcs_data 
+from services.ai_service import analyze_code 
+from config.settings import DEFAULT_PROMPT
+from utils.exporter import generate_html_report, generate_tc_excel
+
+st.set_page_config(page_title="딴딴의 여러가지 툴", page_icon="💊", layout="wide")
+
+# 💡 [핵심 변경] DB를 대신할 '글로벌 공유 메모리' 생성
+@st.cache_resource
+def get_global_state():
+    return {"history": []}
+
+global_state = get_global_state()
+
+# 페이징은 사용자마다 다르게 보여야 하므로 세션 유지
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = 1
+
+SUPER_PASSWORD = "admin1234"  # 👑 관리자 슈퍼 비밀번호
+
+st.markdown("""
+<style>
+    /* 메인 화면 상단 여백 축소 */
+    .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+    }
+
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label > div:first-child { display: none; }
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label { background-color: #ffffff; border: 2px solid #f0f2f6; border-radius: 50px !important; padding: 12px 20px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s ease-in-out; width: 100%; text-align: center; }
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:hover { border-color: #4A90E2; background-color: #F0F8FF; transform: translateY(-2px); }
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) { background-color: #4A90E2 !important; border-color: #4A90E2 !important; }
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) p { color: white !important; font-weight: 700 !important; }
     
+    div[data-testid="column"] button { width: 100%; }
+</style>
+""", unsafe_allow_html=True)
+
+with st.sidebar:
+    st.title("🛠️ 딴딴의 여러가지 툴")
+    st.markdown("<br>", unsafe_allow_html=True) 
+    selected_menu = st.radio("메뉴 선택", ["🚀 QA 리스크 분석 및 TC 생성 툴", "📝 2번째 프로젝트", "🛅 3번째 프로젝트"], label_visibility="collapsed")
+
+if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
+    st.title("🚀 QA 리스크 분석 및 TC 생성 툴")
+
+    # 💡 [신규 기능] 데모 화면과 실제 툴을 탭(Tab)으로 깔끔하게 분리
     tab_main, tab_demo = st.tabs(["💻 직접 사용해보기", "👀 1분 데모 보기 (API 키가 없다면)"])
 
     # ---------------------------------------------------------
@@ -53,6 +100,7 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
                 html_data = generate_html_report(result)
                 excel_data = generate_tc_excel(result)
                 
+                # 고유 ID 생성 (삭제 후에도 중복 방지)
                 new_id = max([item['id'] for item in global_state["history"]] + [0]) + 1
                 
                 record = {
@@ -66,6 +114,7 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
                     'html': html_data,
                     'excel': excel_data
                 }
+                # 글로벌 상태에 저장!
                 global_state["history"].insert(0, record)
                 st.session_state.current_page = 1
             else:
@@ -73,7 +122,6 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
 
         st.divider()
 
-        # --- (이하 기존과 동일한 공용 분석 히스토리 출력 로직) ---
         st.subheader("🗂️ 실시간 공용 분석 히스토리")
         
         search_col, _ = st.columns([1, 5])
@@ -85,6 +133,7 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
         if not global_state["history"]:
             st.info("실행된 분석 결과가 없습니다. 첫 분석을 시작해보세요!")
         else:
+            # 글로벌 상태에서 데이터 가져오기
             if search_query:
                 filtered_history = [item for item in global_state["history"] if search_query.lower() in item['user'].lower()]
             else:
@@ -146,6 +195,7 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
                     with c8:
                         if is_unlocked:
                             if st.button("🗑️ 삭제", key=f"del_{item['id']}", type="secondary", use_container_width=True):
+                                # 글로벌 상태에서 항목 삭제
                                 global_state["history"] = [x for x in global_state["history"] if x['id'] != item['id']]
                                 st.rerun()
                         else:
@@ -171,31 +221,35 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
     # ---------------------------------------------------------
     with tab_demo:
         st.subheader("💡 1분 데모 워크스루")
-        st.info("API 키나 토큰이 없으신 채용 담당자/면접관님을 위해 실제 구동 화면을 캡처하여 제공합니다. 아래 순서대로 툴이 동작합니다.")
+        st.info("API 키나 토큰이 없으신 분들을 위해 실제 구동 화면을 캡처하여 제공합니다. 아래 순서대로 툴이 동작합니다.")
         
-        # Step 1
         st.markdown("### 1️⃣ Step 1. 분석 대상 및 환경 설정")
         st.markdown("사용자명, AI 모델, API 키, 그리고 **분석할 코드의 깃허브(또는 깃랩) PR/MR 링크**를 입력합니다.")
-        # ⚠️ 캡처 이미지를 프로젝트 최상위 폴더에 넣고 경로를 맞춰주세요.
+        # ⚠️ 아래 캡처 이미지들의 주석을 풀고 파일명을 맞추면 화면에 바로 나옵니다!
         # st.image("step1_input.png", use_container_width=True) 
         
         st.divider()
 
-        # Step 2
         st.markdown("### 2️⃣ Step 2. AI 분석 완료 및 히스토리 누적")
         st.markdown("분석이 완료되면 팀원 모두가 볼 수 있는 **실시간 공용 대시보드**에 결과가 누적됩니다. 타인이 열람하지 못하도록 설정한 비밀번호로 다운로드를 제어합니다.")
         # st.image("step2_dashboard.png", use_container_width=True)
 
         st.divider()
 
-        # Step 3
         st.markdown("### 3️⃣ Step 3. QA 리스크 보고서 확인 (HTML)")
         st.markdown("AI가 코드 변경점을 분석하여 도출한 **사이드 이펙트와 QA 중점 테스트 포인트**를 깔끔한 HTML 보고서로 즉시 다운로드하여 확인할 수 있습니다.")
         # st.image("step3_html.png", use_container_width=True)
 
         st.divider()
 
-        # Step 4
         st.markdown("### 4️⃣ Step 4. 엑셀 테스트케이스(TC) 확인")
         st.markdown("보고서뿐만 아니라, **실제 QA 실무에서 사용하는 9열 포맷(Depth, 상세, 사전조건 등)**이 서식까지 완벽하게 적용된 엑셀 파일로 자동 생성됩니다.")
         # st.image("step4_excel.png", use_container_width=True)
+
+elif selected_menu == "📝 2번째 프로젝트":
+    st.title("📝 2번째 프로젝트")
+    st.info("이 기능은 현재 개발 중입니다.")
+
+elif selected_menu == "🛅 3번째 프로젝트":
+    st.title("🛅 3번째 프로젝트")
+    st.info("이 기능은 현재 개발 중입니다.")
