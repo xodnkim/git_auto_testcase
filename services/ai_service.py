@@ -1,21 +1,20 @@
-# services/ai_service.py
+# services/ai_service.py (일부 수정)
 from google import genai
 import openai
 import anthropic
-from config.settings import DEFAULT_PROMPT
 
-def analyze_code(provider, api_key, commits, diffs):
-    """UI 개입 없이 코드 내부에서 사용 가능한 최적의 모델을 자동 탐색하여 실행합니다."""
-    prompt = DEFAULT_PROMPT.format(commits=commits, diffs=diffs)
+# 🚀 수정: custom_prompt를 파라미터로 받습니다.
+def analyze_code(provider, api_key, commits, diffs, custom_prompt):
+    
+    # .format() 대신 .replace()를 써야 사용자가 {commits}를 실수로 지워도 에러가 안 납니다.
+    prompt = custom_prompt.replace("{commits}", commits).replace("{diffs}", diffs)
     
     if provider == "Gemini":
         try:
             client = genai.Client(api_key=api_key)
-            # 1. 동적 목록 조회
             available = [m.name.replace("models/", "") for m in client.models.list() if "generateContent" in m.supported_methods]
             if not available: return None, None, "Gemini: 사용 가능한 모델이 없습니다."
             
-            # 2. 선호 모델 자동 선택 (없으면 리스트 첫 번째)
             preferred = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash"]
             selected_model = next((m for m in preferred if m in available), available[0])
             
@@ -27,11 +26,9 @@ def analyze_code(provider, api_key, commits, diffs):
     elif provider == "ChatGPT":
         try:
             client = openai.OpenAI(api_key=api_key)
-            # 1. 동적 목록 조회
             models = client.models.list()
             available = [m.id for m in models.data]
             
-            # 2. 선호 모델 자동 선택
             preferred = ["gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"]
             selected_model = next((m for m in preferred if m in available), None)
             
@@ -51,7 +48,6 @@ def analyze_code(provider, api_key, commits, diffs):
     elif provider == "Claude":
         try:
             client = anthropic.Anthropic(api_key=api_key)
-            # 🚨 Claude는 API 스펙상 list()를 지원하지 않아 내부 Fallback 루프 사용
             preferred_models = ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-haiku-20240307"]
             
             last_error = ""
@@ -65,7 +61,7 @@ def analyze_code(provider, api_key, commits, diffs):
                     return response.content[0].text, selected_model, None
                 except Exception as e:
                     last_error = str(e)
-                    continue # 에러 나면 다음 모델로 조용히 넘어감
+                    continue 
                     
             return None, None, f"Claude 모든 모델 실패: {last_error}"
         except Exception as e:
