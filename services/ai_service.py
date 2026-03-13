@@ -1,21 +1,26 @@
-# services/ai_service.py (일부 수정)
 from google import genai
 import openai
 import anthropic
 
-# 🚀 수정: custom_prompt를 파라미터로 받습니다.
 def analyze_code(provider, api_key, commits, diffs, custom_prompt):
+    """선택한 AI로 코드를 분석하고 결과를 반환합니다."""
     
-    # .format() 대신 .replace()를 써야 사용자가 {commits}를 실수로 지워도 에러가 안 납니다.
+    # .replace()를 사용하여 사용자가 실수로 예약어를 지우는 것을 방지
     prompt = custom_prompt.replace("{commits}", commits).replace("{diffs}", diffs)
     
     if provider == "Gemini":
         try:
             client = genai.Client(api_key=api_key)
-            available = [m.name.replace("models/", "") for m in client.models.list() if "generateContent" in m.supported_methods]
-            if not available: return None, None, "Gemini: 사용 가능한 모델이 없습니다."
             
+            # 💡 [ERROR FIX]: supported_methods 체크를 완전히 제거하고 이름만 깔끔하게 가져옵니다.
+            available = [m.name.replace("models/", "") for m in client.models.list()]
+            if not available: 
+                return None, None, "Gemini: 사용 가능한 모델이 없습니다."
+            
+            # 우리가 쓰고 싶은 최신/안정화 모델 목록
             preferred = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash"]
+            
+            # available 목록 중에 preferred가 있으면 그걸 쓰고, 없으면 그냥 첫 번째 모델 사용
             selected_model = next((m for m in preferred if m in available), available[0])
             
             response = client.models.generate_content(model=selected_model, contents=prompt)
@@ -34,7 +39,8 @@ def analyze_code(provider, api_key, commits, diffs, custom_prompt):
             
             if not selected_model:
                 gpt_models = [m for m in available if "gpt" in m]
-                if not gpt_models: return None, None, "사용 가능한 GPT 모델이 없습니다."
+                if not gpt_models: 
+                    return None, None, "사용 가능한 GPT 모델이 없습니다."
                 selected_model = gpt_models[0]
                 
             response = client.chat.completions.create(
@@ -48,6 +54,8 @@ def analyze_code(provider, api_key, commits, diffs, custom_prompt):
     elif provider == "Claude":
         try:
             client = anthropic.Anthropic(api_key=api_key)
+            
+            # Claude는 API 스펙상 list()를 지원하지 않아 내부 Fallback(순차적 시도) 로직 사용
             preferred_models = ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-haiku-20240307"]
             
             last_error = ""
@@ -61,7 +69,7 @@ def analyze_code(provider, api_key, commits, diffs, custom_prompt):
                     return response.content[0].text, selected_model, None
                 except Exception as e:
                     last_error = str(e)
-                    continue 
+                    continue # 에러 나면 조용히 다음 모델로 넘어감
                     
             return None, None, f"Claude 모든 모델 실패: {last_error}"
         except Exception as e:
