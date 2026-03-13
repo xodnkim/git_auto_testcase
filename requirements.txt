@@ -1,5 +1,8 @@
 streamlit
+pandas
 requests
 google-genai
-anthropic
 openai
+anthropic
+markdown
+openpyxl
