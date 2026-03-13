@@ -226,25 +226,26 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
         st.markdown("### 1️⃣ Step 1. 분석 대상 및 환경 설정")
         st.markdown("사용자명, AI 모델, API 키, 그리고 **분석할 코드의 깃허브(또는 깃랩) PR/MR 링크**를 입력합니다.")
         # ⚠️ 아래 캡처 이미지들의 주석을 풀고 파일명을 맞추면 화면에 바로 나옵니다!
-        # st.image("step1_input.png", use_container_width=True) 
+        st.image("step1_1.png", use_container_width=True) 
+        st.image("step1.png", use_container_width=True) 
         
         st.divider()
 
         st.markdown("### 2️⃣ Step 2. AI 분석 완료 및 히스토리 누적")
         st.markdown("분석이 완료되면 팀원 모두가 볼 수 있는 **실시간 공용 대시보드**에 결과가 누적됩니다. 타인이 열람하지 못하도록 설정한 비밀번호로 다운로드를 제어합니다.")
-        # st.image("step2_dashboard.png", use_container_width=True)
+        st.image("step2.png", use_container_width=True)
 
         st.divider()
 
         st.markdown("### 3️⃣ Step 3. QA 리스크 보고서 확인 (HTML)")
         st.markdown("AI가 코드 변경점을 분석하여 도출한 **사이드 이펙트와 QA 중점 테스트 포인트**를 깔끔한 HTML 보고서로 즉시 다운로드하여 확인할 수 있습니다.")
-        # st.image("step3_html.png", use_container_width=True)
+        st.image("step3.png", use_container_width=True)
 
         st.divider()
 
         st.markdown("### 4️⃣ Step 4. 엑셀 테스트케이스(TC) 확인")
         st.markdown("보고서뿐만 아니라, **실제 QA 실무에서 사용하는 9열 포맷(Depth, 상세, 사전조건 등)**이 서식까지 완벽하게 적용된 엑셀 파일로 자동 생성됩니다.")
-        # st.image("step4_excel.png", use_container_width=True)
+        st.image("step4.png", use_container_width=True)
 
 elif selected_menu == "📝 2번째 프로젝트":
     st.title("📝 2번째 프로젝트")
