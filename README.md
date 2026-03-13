@@ -1,11 +1,6 @@
 # 🚀 AI 기반 형상관리 QA 리스크 분석 & TC 자동 생성기
 > **코드 변경점을 AI가 분석하여 QA 리스크를 도출하고, 실무용 엑셀 테스트케이스(TC)를 자동 생성하는 실시간 팀 협업 대시보드입니다.**
 
-![Python](https://img-shields.io/badge/python-3.9+-blue.svg)
-![Streamlit](https://img-shields.io/badge/Streamlit-FF4B4B?style=flat&logo=Streamlit&logoColor=white)
-![OpenAI](https://img-shields.io/badge/OpenAI-412991?style=flat&logo=openai&logoColor=white)
-![Gemini](https://img-shields.io/badge/Gemini-8E75B2?style=flat&logo=googlebard&logoColor=white)
-
 ## 📌 프로젝트 기획 배경 (Background)
 * **Pain Point**: QA 과정에서 개발자의 커밋(Commit) 로그나 PR/MR 코드를 일일이 리뷰하고, 사이드 이펙트를 예측하여 테스트케이스(TC)를 작성하는 데 막대한 시간이 소모됩니다.
 * **Solution**: 멀티 플랫폼(웹/모바일) 환경을 이해하는 LLM을 활용하여, VCS 링크 하나만으로 **핵심 변경 요약, 리스크 분석, 검증 포인트, 엑셀 TC까지 원클릭으로 추출**하는 자동화 파이프라인을 구축했습니다.
