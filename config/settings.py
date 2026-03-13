@@ -4,6 +4,7 @@ ALLOWED_EXTENSIONS = ('.py', '.js', '.ts', '.java', '.kt', '.swift', '.vue', '.h
 MAX_CHUNK_LENGTH = 800
 MAX_TOTAL_LENGTH = 5000
 
+# 💡 디폴트 프롬프트를 사용자님의 완벽한 포맷으로 교체했습니다.
 DEFAULT_PROMPT = """너는 IT 서비스의 시니어 QA 엔지니어다.
 멀티 플랫폼(웹, 모바일)과 실시간 스트리밍 특성을 고려해서 아래 코드를 분석해줘.
 
@@ -18,3 +19,10 @@ DEFAULT_PROMPT = """너는 IT 서비스의 시니어 QA 엔지니어다.
 ```csv
 TC_No,1Depth,2depth,3depth,상세,사전 조건,동작,기대 결과,Result
 TC-01,방송입장,비밀번호방,입장,비밀번호 방 정상 입장 확인,비밀번호 방 생성됨,올바른 비번 입력 후 입장,방송 정상 송출,-
+```
+
+### [데이터] ###
+커밋 메시지: {commits}
+코드 변경점: {diffs}"""
+
+EXAMPLE_PROMPT = DEFAULT_PROMPT
