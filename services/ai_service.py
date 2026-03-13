@@ -5,28 +5,43 @@ import anthropic
 def analyze_code(provider, api_key, commits, diffs, custom_prompt):
     """선택한 AI로 코드를 분석하고 결과를 반환합니다."""
     
-    # .replace()를 사용하여 사용자가 실수로 예약어를 지우는 것을 방지
     prompt = custom_prompt.replace("{commits}", commits).replace("{diffs}", diffs)
     
     if provider == "Gemini":
         try:
             client = genai.Client(api_key=api_key)
             
-            # 💡 [ERROR FIX]: supported_methods 체크를 완전히 제거하고 이름만 깔끔하게 가져옵니다.
+            # 1. 사용 가능한 모델 목록 가져오기
             available = [m.name.replace("models/", "") for m in client.models.list()]
             if not available: 
                 return None, None, "Gemini: 사용 가능한 모델이 없습니다."
             
-            # 우리가 쓰고 싶은 최신/안정화 모델 목록
-            preferred = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash"]
+            # 2. 우선순위 모델 (사용자님 대시보드 기준 2.5-flash 최우선 배치)
+            preferred = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash"]
             
-            # available 목록 중에 preferred가 있으면 그걸 쓰고, 없으면 그냥 첫 번째 모델 사용
-            selected_model = next((m for m in preferred if m in available), available[0])
+            # 3. 우선순위 중 사용 가능한 모델만 추려냄 (없으면 전체 목록 사용)
+            models_to_try = [m for m in preferred if m in available]
+            if not models_to_try:
+                models_to_try = available
+                
+            # 💡 [핵심 해결책]: 목록에 있다고 믿지 말고, 진짜로 실행해봅니다. (Fallback Loop)
+            last_error = ""
+            for model_name in models_to_try:
+                try:
+                    # 실행을 시도해보고
+                    response = client.models.generate_content(model=model_name, contents=prompt)
+                    # 성공하면 바로 리턴!
+                    return response.text, model_name, None
+                except Exception as e:
+                    # 404 에러 등이 나면 화면에 띄우지 않고 조용히 다음 모델로 넘어갑니다.
+                    last_error = str(e)
+                    continue 
+                    
+            # 모든 모델이 다 실패했을 때만 에러를 뱉습니다.
+            return None, None, f"Gemini 모든 모델 실행 실패 (마지막 에러: {last_error})"
             
-            response = client.models.generate_content(model=selected_model, contents=prompt)
-            return response.text, selected_model, None
         except Exception as e:
-            return None, None, f"Gemini 실행 오류: {e}"
+            return None, None, f"Gemini API 연결 오류: {e}"
 
     elif provider == "ChatGPT":
         try:
@@ -55,7 +70,6 @@ def analyze_code(provider, api_key, commits, diffs, custom_prompt):
         try:
             client = anthropic.Anthropic(api_key=api_key)
             
-            # Claude는 API 스펙상 list()를 지원하지 않아 내부 Fallback(순차적 시도) 로직 사용
             preferred_models = ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-haiku-20240307"]
             
             last_error = ""
@@ -69,7 +83,7 @@ def analyze_code(provider, api_key, commits, diffs, custom_prompt):
                     return response.content[0].text, selected_model, None
                 except Exception as e:
                     last_error = str(e)
-                    continue # 에러 나면 조용히 다음 모델로 넘어감
+                    continue 
                     
             return None, None, f"Claude 모든 모델 실패: {last_error}"
         except Exception as e:
