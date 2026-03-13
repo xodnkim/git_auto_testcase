@@ -25,7 +25,7 @@ st.markdown("""
     section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) { background-color: #4A90E2 !important; border-color: #4A90E2 !important; }
     section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) p { color: white !important; font-weight: 700 !important; }
     
-    /* 버튼 텍스트 정렬 보정 */
+    /* 버튼 및 인풋 정렬 보정 */
     div[data-testid="column"] button { width: 100%; }
 </style>
 """, unsafe_allow_html=True)
@@ -38,7 +38,6 @@ with st.sidebar:
 if selected_menu == "🚀 형상관리 QA 리스크 분석기":
     st.title("🛡️ 형상관리 QA 리스크 분석기")
 
-    # 💡 [요청 반영] 4열 2단 레이아웃 배치
     with st.container(border=True):
         # 1. 사용자명 / 비밀번호
         r1_c1, r1_c2 = st.columns(2)
@@ -90,9 +89,9 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
             
             record = {
                 'id': len(st.session_state.history) + 1,
-                'time': datetime.datetime.now().strftime("%y-%m-%d %H:%M"),
+                'time': datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), # 💡 날짜 포맷 yyyy-mm-dd hh:mm 수정
                 'user': user_name,
-                'password': doc_password, # 비밀번호 저장
+                'password': doc_password,
                 'api': f"{ai_provider} ({used_model})",
                 'platform': parsed['platform'].capitalize(),
                 'link': link,
@@ -100,7 +99,6 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
                 'excel': excel_data
             }
             st.session_state.history.insert(0, record)
-            # 새 데이터 추가 시 1페이지로 이동
             st.session_state.current_page = 1
         else:
             st.error(f"분석 실패: {error}")
@@ -109,86 +107,99 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
 
     st.subheader("🗂️ 분석 결과 히스토리")
     
+    # 💡 1. 사용자명 검색 기능 추가
+    search_query = st.text_input("🔍 사용자명 검색", placeholder="검색할 사용자명을 입력하세요")
+    st.markdown("<br>", unsafe_allow_html=True) # 💡 한 줄 띄우기
+
     if not st.session_state.history:
         st.info("실행된 분석 결과가 없습니다. 첫 분석을 시작해보세요!")
     else:
-        # 💡 페이징 로직 (한 페이지당 5개)
-        ITEMS_PER_PAGE = 5
-        total_items = len(st.session_state.history)
-        total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
-        
-        if st.session_state.current_page > total_pages:
-            st.session_state.current_page = max(1, total_pages)
-            
-        start_idx = (st.session_state.current_page - 1) * ITEMS_PER_PAGE
-        end_idx = start_idx + ITEMS_PER_PAGE
-        current_items = st.session_state.history[start_idx:end_idx]
+        # 검색 필터링 로직
+        if search_query:
+            filtered_history = [item for item in st.session_state.history if search_query.lower() in item['user'].lower()]
+        else:
+            filtered_history = st.session_state.history
 
-        # 리스트 헤더
-        h1, h2, h3, h4, h5, h6, h7, h8 = st.columns([1, 1, 1, 1, 2, 1.5, 2, 1])
-        h1.markdown("**사용자**")
-        h2.markdown("**일시**")
-        h3.markdown("**API**")
-        h4.markdown("**저장소**")
-        h5.markdown("**대상 링크**")
-        h6.markdown("**비밀번호**")
-        h7.markdown("**다운로드**")
-        h8.markdown("**삭제**")
-        
-        # 항목 출력
-        for item in current_items:
-            st.markdown("<hr style='margin: 0.5em 0;'>", unsafe_allow_html=True)
-            c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1, 1, 1, 1, 2, 1.5, 2, 1])
+        if not filtered_history:
+            st.warning("검색 결과가 없습니다.")
+        else:
+            # 페이징 로직 (필터링된 데이터 기준)
+            ITEMS_PER_PAGE = 5
+            total_items = len(filtered_history)
+            total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
             
-            with c1: st.write(f"👤 {item['user']}")
-            with c2: st.caption(item['time'])
-            with c3: st.caption(item['api'])
-            with c4: st.write(item['platform'])
-            with c5: 
-                short_link = item['link'][:30] + "..." if len(item['link']) > 30 else item['link']
-                st.caption(f"[{short_link}]({item['link']})")
-            
-            # 💡 다운로드 & 삭제를 위한 비밀번호 검증
-            with c6:
-                input_pw = st.text_input("PW", type="password", key=f"pw_{item['id']}", label_visibility="collapsed", placeholder="비밀번호 입력")
+            if st.session_state.current_page > total_pages:
+                st.session_state.current_page = max(1, total_pages)
                 
-            is_unlocked = (input_pw == item['password'] or input_pw == SUPER_PASSWORD)
+            start_idx = (st.session_state.current_page - 1) * ITEMS_PER_PAGE
+            end_idx = start_idx + ITEMS_PER_PAGE
+            current_items = filtered_history[start_idx:end_idx]
+
+            # 💡 리스트 헤더 (가운데 정렬 + 명칭 변경)
+            h1, h2, h3, h4, h5, h6, h7, h8 = st.columns([1, 1.2, 1, 1, 2, 1.5, 2, 1])
+            h1.markdown("<div style='text-align: center;'><b>사용자</b></div>", unsafe_allow_html=True)
+            h2.markdown("<div style='text-align: center;'><b>일시</b></div>", unsafe_allow_html=True)
+            h3.markdown("<div style='text-align: center;'><b>API</b></div>", unsafe_allow_html=True)
+            h4.markdown("<div style='text-align: center;'><b>저장소</b></div>", unsafe_allow_html=True)
+            h5.markdown("<div style='text-align: center;'><b>분석한 링크</b></div>", unsafe_allow_html=True)
+            h6.markdown("<div style='text-align: center;'><b>비밀번호</b></div>", unsafe_allow_html=True)
+            h7.markdown("<div style='text-align: center;'><b>다운로드</b></div>", unsafe_allow_html=True)
+            h8.markdown("<div style='text-align: center;'><b>삭제</b></div>", unsafe_allow_html=True)
             
-            with c7:
-                if is_unlocked:
-                    btn_col1, btn_col2 = st.columns(2)
-                    btn_col1.download_button("🌐 HTML", data=item['html'], file_name=f"Report_{item['id']}.html", mime="text/html", key=f"h_{item['id']}", use_container_width=True)
-                    if item['excel']:
-                        btn_col2.download_button("📊 엑셀", data=item['excel'], file_name=f"TC_{item['id']}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"e_{item['id']}", use_container_width=True)
-                else:
-                    if input_pw:
-                        st.error("불일치")
+            # 항목 출력 (가운데 정렬)
+            for item in current_items:
+                st.markdown("<hr style='margin: 0.5em 0;'>", unsafe_allow_html=True)
+                c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1, 1.2, 1, 1, 2, 1.5, 2, 1])
+                
+                with c1: st.markdown(f"<div style='text-align: center;'>👤 {item['user']}</div>", unsafe_allow_html=True)
+                with c2: st.markdown(f"<div style='text-align: center; color: gray; font-size: 0.9em;'>{item['time']}</div>", unsafe_allow_html=True)
+                with c3: st.markdown(f"<div style='text-align: center; color: gray; font-size: 0.9em;'>{item['api']}</div>", unsafe_allow_html=True)
+                with c4: st.markdown(f"<div style='text-align: center;'>{item['platform']}</div>", unsafe_allow_html=True)
+                with c5: 
+                    short_link = item['link'][:30] + "..." if len(item['link']) > 30 else item['link']
+                    st.markdown(f"<div style='text-align: center; font-size: 0.9em;'><a href='{item['link']}' target='_blank'>{short_link}</a></div>", unsafe_allow_html=True)
+                
+                with c6:
+                    input_pw = st.text_input("PW", type="password", key=f"pw_{item['id']}", label_visibility="collapsed", placeholder="비밀번호")
+                    
+                is_unlocked = (input_pw == item['password'] or input_pw == SUPER_PASSWORD)
+                
+                with c7:
+                    if is_unlocked:
+                        btn_col1, btn_col2 = st.columns(2)
+                        # 💡 아이콘 및 명칭 변경 반영
+                        btn_col1.download_button("📊 보고서", data=item['html'], file_name=f"Report_{item['id']}.html", mime="text/html", key=f"h_{item['id']}", use_container_width=True)
+                        if item['excel']:
+                            btn_col2.download_button("📗 엑셀", data=item['excel'], file_name=f"TC_{item['id']}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"e_{item['id']}", use_container_width=True)
                     else:
-                        st.caption("🔒 잠김")
+                        if input_pw:
+                            st.markdown("<div style='text-align: center; color: red; margin-top: 8px;'>불일치</div>", unsafe_allow_html=True)
+                        else:
+                            st.markdown("<div style='text-align: center; color: gray; margin-top: 8px;'>🔒 잠김</div>", unsafe_allow_html=True)
 
-            with c8:
-                if is_unlocked:
-                    if st.button("🗑️ 삭제", key=f"del_{item['id']}", type="secondary", use_container_width=True):
-                        st.session_state.history = [x for x in st.session_state.history if x['id'] != item['id']]
+                with c8:
+                    if is_unlocked:
+                        if st.button("🗑️ 삭제", key=f"del_{item['id']}", type="secondary", use_container_width=True):
+                            st.session_state.history = [x for x in st.session_state.history if x['id'] != item['id']]
+                            st.rerun()
+                    else:
+                        st.button("🗑️ 삭제", key=f"del_dis_{item['id']}", disabled=True, use_container_width=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # 페이징 컨트롤 (하단)
+            if total_pages > 1:
+                p1, p2, p3 = st.columns([1, 3, 1])
+                with p1:
+                    if st.button("◀ 이전", use_container_width=True, disabled=(st.session_state.current_page == 1)):
+                        st.session_state.current_page -= 1
                         st.rerun()
-                else:
-                    st.button("🗑️ 삭제", key=f"del_dis_{item['id']}", disabled=True, use_container_width=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # 💡 페이징 컨트롤 (하단)
-        if total_pages > 1:
-            p1, p2, p3 = st.columns([1, 3, 1])
-            with p1:
-                if st.button("◀ 이전", use_container_width=True, disabled=(st.session_state.current_page == 1)):
-                    st.session_state.current_page -= 1
-                    st.rerun()
-            with p2:
-                st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>{st.session_state.current_page} / {total_pages} 페이지</b></div>", unsafe_allow_html=True)
-            with p3:
-                if st.button("다음 ▶", use_container_width=True, disabled=(st.session_state.current_page == total_pages)):
-                    st.session_state.current_page += 1
-                    st.rerun()
+                with p2:
+                    st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>{st.session_state.current_page} / {total_pages} 페이지</b></div>", unsafe_allow_html=True)
+                with p3:
+                    if st.button("다음 ▶", use_container_width=True, disabled=(st.session_state.current_page == total_pages)):
+                        st.session_state.current_page += 1
+                        st.rerun()
 
 elif selected_menu == "📝 기획서-코드 검증기":
     st.title("📝 기획서-코드 검증기")
