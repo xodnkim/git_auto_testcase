@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import datetime
 from utils.parser import parse_vcs_link 
@@ -43,6 +42,11 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
         with col4:
             vcs_token = st.text_input("GitLab/GitHub Token", type="password")
             
+        # 💡 [복구완료] 사라졌던 맞춤 프롬프트 팝오버 부활!
+        with st.popover("📝 맞춤 프롬프트 확인 및 수정", use_container_width=True):
+            st.markdown("**기본 적용된 9칸 엑셀 포맷 프롬프트입니다. 필요시 수정하세요.**")
+            custom_prompt = st.text_area("AI 프롬프트", value=DEFAULT_PROMPT, height=300)
+
         link = st.text_input("🔗 분석할 링크 (GitLab MR / GitHub PR / Commit)")
         
         # 버튼을 꽉 차게 배치
@@ -64,7 +68,8 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
                 st.stop()
 
             with st.spinner("AI가 코드를 분석하고 TC를 생성하는 중..."):
-                result, used_model, error = analyze_code(ai_provider, api_key, commits, diffs, DEFAULT_PROMPT)
+                # 수정된 custom_prompt를 다시 전달
+                result, used_model, error = analyze_code(ai_provider, api_key, commits, diffs, custom_prompt)
                 
             if result:
                 st.success("✅ 분석이 완료되어 리스트에 추가되었습니다!")
@@ -73,7 +78,7 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
                 html_data = generate_html_report(result)
                 excel_data = generate_tc_excel(result)
                 
-                # 💡 히스토리 리스트 맨 위에 데이터 삽입
+                # 히스토리 리스트 맨 위에 데이터 삽입
                 record = {
                     'id': len(st.session_state.history) + 1,
                     'time': datetime.datetime.now().strftime("%y-%m-%d %H:%M"),
@@ -115,12 +120,10 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
             with c3: st.caption(item['api'])
             with c4: st.write(item['platform'])
             with c5: 
-                # 링크가 너무 길면 잘라서 표시
                 short_link = item['link'][:50] + "..." if len(item['link']) > 50 else item['link']
                 st.caption(f"[{short_link}]({item['link']})")
             
             with c6:
-                # 다운로드 버튼 2개 나란히 배치
                 btn_col1, btn_col2 = st.columns(2)
                 btn_col1.download_button("🌐 HTML", data=item['html'], file_name=f"Report_{item['id']}.html", mime="text/html", key=f"h_{item['id']}", use_container_width=True)
                 if item['excel']:
