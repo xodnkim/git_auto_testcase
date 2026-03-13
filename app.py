@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import datetime
 from utils.parser import parse_vcs_link 
