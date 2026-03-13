@@ -33,10 +33,10 @@ st.markdown("""
 with st.sidebar:
     st.title("🛠️ 딴딴의 여러가지 툴")
     st.markdown("<br>", unsafe_allow_html=True) 
-    selected_menu = st.radio("메뉴 선택", ["🚀 형상관리 QA 리스크 분석기", "📝 기획서-코드 검증기", "🛅 TC 자동 생성기"], label_visibility="collapsed")
+    selected_menu = st.radio("메뉴 선택", ["🚀 QA 리스크 분석기", "📝 뭐 만들지", "🛅 생각중..."], label_visibility="collapsed")
 
-if selected_menu == "🚀 형상관리 QA 리스크 분석기":
-    st.title("🛡️ 형상관리 QA 리스크 분석기")
+if selected_menu == "🚀 QA 리스크 분석기":
+    st.title("🚀 QA 리스크 분석기")
 
     with st.container(border=True):
         # 1. 사용자명 / 비밀번호
