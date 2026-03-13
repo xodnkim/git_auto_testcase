@@ -43,10 +43,10 @@ st.markdown("""
 with st.sidebar:
     st.title("🛠️ 딴딴의 여러가지 툴")
     st.markdown("<br>", unsafe_allow_html=True) 
-    selected_menu = st.radio("메뉴 선택", ["🚀 형상관리 QA 리스크 분석기", "📝 기획서-코드 검증기", "🛅 TC 자동 생성기"], label_visibility="collapsed")
+    selected_menu = st.radio("메뉴 선택", ["🚀 QA 리스크 분석 및 TC 생성 툴", "📝 2번째 프로젝트", "🛅 3번째 프로젝트"], label_visibility="collapsed")
 
-if selected_menu == "🚀 형상관리 QA 리스크 분석기":
-    st.title("🛡️ 형상관리 QA 리스크 분석기")
+if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
+    st.title("🚀 QA 리스크 분석 및 TC 생성 툴")
 
     with st.container(border=True):
         r1_c1, r1_c2 = st.columns(2)
@@ -209,10 +209,10 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
                         st.session_state.current_page += 1
                         st.rerun()
 
-elif selected_menu == "📝 기획서-코드 검증기":
-    st.title("📝 기획서-코드 검증기")
+elif selected_menu == "📝 2번째 프로젝트":
+    st.title("📝 2번째 프로젝트")
     st.info("이 기능은 현재 개발 중입니다.")
 
-elif selected_menu == "🛅 TC 자동 생성기":
-    st.title("🛅 TC 자동 생성기")
+elif selected_menu == "🛅 3번째 프로젝트":
+    st.title("🛅 3번째 프로젝트")
     st.info("이 기능은 현재 개발 중입니다.")
