@@ -19,6 +19,12 @@ SUPER_PASSWORD = "admin1234"  # 👑 관리자 슈퍼 비밀번호
 
 st.markdown("""
 <style>
+    /* 💡 1. 메인 화면 상단 여백을 대폭 줄여서 제목을 위로 올립니다. */
+    .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+    }
+
     section[data-testid="stSidebar"] div[role="radiogroup"] > label > div:first-child { display: none; }
     section[data-testid="stSidebar"] div[role="radiogroup"] > label { background-color: #ffffff; border: 2px solid #f0f2f6; border-radius: 50px !important; padding: 12px 20px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s ease-in-out; width: 100%; text-align: center; }
     section[data-testid="stSidebar"] div[role="radiogroup"] > label:hover { border-color: #4A90E2; background-color: #F0F8FF; transform: translateY(-2px); }
@@ -33,10 +39,10 @@ st.markdown("""
 with st.sidebar:
     st.title("🛠️ 딴딴의 여러가지 툴")
     st.markdown("<br>", unsafe_allow_html=True) 
-    selected_menu = st.radio("메뉴 선택", ["🚀 QA 리스크 분석기", "📝 뭐 만들지", "🛅 생각중..."], label_visibility="collapsed")
+    selected_menu = st.radio("메뉴 선택", ["🚀 형상관리 QA 리스크 분석기", "📝 기획서-코드 검증기", "🛅 TC 자동 생성기"], label_visibility="collapsed")
 
-if selected_menu == "🚀 QA 리스크 분석기":
-    st.title("🚀 QA 리스크 분석기")
+if selected_menu == "🚀 형상관리 QA 리스크 분석기":
+    st.title("🛡️ 형상관리 QA 리스크 분석기")
 
     with st.container(border=True):
         # 1. 사용자명 / 비밀번호
@@ -89,7 +95,7 @@ if selected_menu == "🚀 QA 리스크 분석기":
             
             record = {
                 'id': len(st.session_state.history) + 1,
-                'time': datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), # 💡 날짜 포맷 yyyy-mm-dd hh:mm 수정
+                'time': datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                 'user': user_name,
                 'password': doc_password,
                 'api': f"{ai_provider} ({used_model})",
@@ -107,9 +113,12 @@ if selected_menu == "🚀 QA 리스크 분석기":
 
     st.subheader("🗂️ 분석 결과 히스토리")
     
-    # 💡 1. 사용자명 검색 기능 추가
-    search_query = st.text_input("🔍 사용자명 검색", placeholder="검색할 사용자명을 입력하세요")
-    st.markdown("<br>", unsafe_allow_html=True) # 💡 한 줄 띄우기
+    # 💡 2. 검색창 길이를 화면 전체의 1/6 수준으로 축소 (1:5 비율)
+    search_col, _ = st.columns([1, 5])
+    with search_col:
+        search_query = st.text_input("🔍 사용자명 검색", placeholder="검색할 사용자명")
+        
+    st.markdown("<br>", unsafe_allow_html=True) 
 
     if not st.session_state.history:
         st.info("실행된 분석 결과가 없습니다. 첫 분석을 시작해보세요!")
@@ -123,7 +132,7 @@ if selected_menu == "🚀 QA 리스크 분석기":
         if not filtered_history:
             st.warning("검색 결과가 없습니다.")
         else:
-            # 페이징 로직 (필터링된 데이터 기준)
+            # 페이징 로직
             ITEMS_PER_PAGE = 5
             total_items = len(filtered_history)
             total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
@@ -135,7 +144,7 @@ if selected_menu == "🚀 QA 리스크 분석기":
             end_idx = start_idx + ITEMS_PER_PAGE
             current_items = filtered_history[start_idx:end_idx]
 
-            # 💡 리스트 헤더 (가운데 정렬 + 명칭 변경)
+            # 리스트 헤더
             h1, h2, h3, h4, h5, h6, h7, h8 = st.columns([1, 1.2, 1, 1, 2, 1.5, 2, 1])
             h1.markdown("<div style='text-align: center;'><b>사용자</b></div>", unsafe_allow_html=True)
             h2.markdown("<div style='text-align: center;'><b>일시</b></div>", unsafe_allow_html=True)
@@ -146,7 +155,7 @@ if selected_menu == "🚀 QA 리스크 분석기":
             h7.markdown("<div style='text-align: center;'><b>다운로드</b></div>", unsafe_allow_html=True)
             h8.markdown("<div style='text-align: center;'><b>삭제</b></div>", unsafe_allow_html=True)
             
-            # 항목 출력 (가운데 정렬)
+            # 항목 출력
             for item in current_items:
                 st.markdown("<hr style='margin: 0.5em 0;'>", unsafe_allow_html=True)
                 c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1, 1.2, 1, 1, 2, 1.5, 2, 1])
@@ -167,7 +176,6 @@ if selected_menu == "🚀 QA 리스크 분석기":
                 with c7:
                     if is_unlocked:
                         btn_col1, btn_col2 = st.columns(2)
-                        # 💡 아이콘 및 명칭 변경 반영
                         btn_col1.download_button("📊 보고서", data=item['html'], file_name=f"Report_{item['id']}.html", mime="text/html", key=f"h_{item['id']}", use_container_width=True)
                         if item['excel']:
                             btn_col2.download_button("📗 엑셀", data=item['excel'], file_name=f"TC_{item['id']}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"e_{item['id']}", use_container_width=True)
@@ -187,7 +195,7 @@ if selected_menu == "🚀 QA 리스크 분석기":
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # 페이징 컨트롤 (하단)
+            # 페이징 컨트롤
             if total_pages > 1:
                 p1, p2, p3 = st.columns([1, 3, 1])
                 with p1:
