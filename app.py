@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+import math
 from utils.parser import parse_vcs_link 
 from services.vcs_service import fetch_vcs_data 
 from services.ai_service import analyze_code 
@@ -8,10 +9,14 @@ from utils.exporter import generate_html_report, generate_tc_excel
 
 st.set_page_config(page_title="딴딴의 여러가지 툴", page_icon="💊", layout="wide")
 
+# 💡 세션 상태(Session State) 초기화
 if 'history' not in st.session_state:
     st.session_state.history = []
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = 1
 
-# 🎨 [복구] LNB 알약 모양 CSS 완벽 적용
+SUPER_PASSWORD = "admin1234"  # 👑 관리자 슈퍼 비밀번호
+
 st.markdown("""
 <style>
     section[data-testid="stSidebar"] div[role="radiogroup"] > label > div:first-child { display: none; }
@@ -19,6 +24,9 @@ st.markdown("""
     section[data-testid="stSidebar"] div[role="radiogroup"] > label:hover { border-color: #4A90E2; background-color: #F0F8FF; transform: translateY(-2px); }
     section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) { background-color: #4A90E2 !important; border-color: #4A90E2 !important; }
     section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) p { color: white !important; font-weight: 700 !important; }
+    
+    /* 버튼 텍스트 정렬 보정 */
+    div[data-testid="column"] button { width: 100%; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -30,33 +38,33 @@ with st.sidebar:
 if selected_menu == "🚀 형상관리 QA 리스크 분석기":
     st.title("🛡️ 형상관리 QA 리스크 분석기")
 
-    # 💡 [수정] 요청하신 레이아웃으로 완벽 배치
+    # 💡 [요청 반영] 4열 2단 레이아웃 배치
     with st.container(border=True):
-        # 1행
+        # 1. 사용자명 / 비밀번호
         r1_c1, r1_c2 = st.columns(2)
         user_name = r1_c1.text_input("👤 사용자명", placeholder="홍길동")
-        ai_provider = r1_c2.selectbox("🤖 AI 선택", ["Gemini", "ChatGPT", "Claude"]) 
+        doc_password = r1_c2.text_input("🔒 비밀번호 (결과물 보호용)", type="password", placeholder="다운로드 시 필요합니다")
 
-        # 2행
+        # 2. AI 선택 / API Key
         r2_c1, r2_c2 = st.columns(2)
-        vcs_token = r2_c1.text_input("GitLab/GitHub Token", type="password")
+        ai_provider = r2_c1.selectbox("🤖 AI 선택", ["Gemini", "ChatGPT", "Claude"]) 
         api_key = r2_c2.text_input(f"{ai_provider} API Key", type="password")
 
-        # 3행
-        link = st.text_input("🔗 분석할 링크 (GitLab MR / GitHub PR / Commit)")
+        # 3. Token / 링크
+        r3_c1, r3_c2 = st.columns(2)
+        vcs_token = r3_c1.text_input("🔑 GitLab/GitHub Token", type="password", placeholder="비공개 저장소인 경우 필수")
+        link = r3_c2.text_input("🔗 분석할 링크 (GitLab MR / GitHub PR / Commit)")
 
-        # 4행
+        # 4. 맞춤 프롬프트 / 실행 버튼
         r4_c1, r4_c2 = st.columns([3, 1])
         with r4_c1.popover("📝 맞춤 프롬프트 확인 및 수정", use_container_width=True):
             custom_prompt = st.text_area("AI 프롬프트", value=DEFAULT_PROMPT, height=300)
         
-        # 버튼을 4행 우측에 배치
         submit_btn = r4_c2.button("🚀 분석 실행", type="primary", use_container_width=True)
 
-    # 💡 [수정] 스피너(로딩)가 우측 상단이 아닌 메인 중앙에 제대로 뜨도록 밖으로 뺐습니다.
     if submit_btn:
-        if not (user_name and api_key and link):
-            st.error("사용자명, API 키, 링크를 모두 입력해주세요.")
+        if not (user_name and doc_password and api_key and link):
+            st.error("사용자명, 비밀번호, API 키, 링크를 모두 입력해주세요.")
             st.stop()
             
         parsed = parse_vcs_link(link)
@@ -84,6 +92,7 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
                 'id': len(st.session_state.history) + 1,
                 'time': datetime.datetime.now().strftime("%y-%m-%d %H:%M"),
                 'user': user_name,
+                'password': doc_password, # 비밀번호 저장
                 'api': f"{ai_provider} ({used_model})",
                 'platform': parsed['platform'].capitalize(),
                 'link': link,
@@ -91,6 +100,8 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
                 'excel': excel_data
             }
             st.session_state.history.insert(0, record)
+            # 새 데이터 추가 시 1페이지로 이동
+            st.session_state.current_page = 1
         else:
             st.error(f"분석 실패: {error}")
 
@@ -101,33 +112,83 @@ if selected_menu == "🚀 형상관리 QA 리스크 분석기":
     if not st.session_state.history:
         st.info("실행된 분석 결과가 없습니다. 첫 분석을 시작해보세요!")
     else:
-        h1, h2, h3, h4, h5, h6 = st.columns([1, 1.5, 1.5, 1, 4, 2])
+        # 💡 페이징 로직 (한 페이지당 5개)
+        ITEMS_PER_PAGE = 5
+        total_items = len(st.session_state.history)
+        total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
+        
+        if st.session_state.current_page > total_pages:
+            st.session_state.current_page = max(1, total_pages)
+            
+        start_idx = (st.session_state.current_page - 1) * ITEMS_PER_PAGE
+        end_idx = start_idx + ITEMS_PER_PAGE
+        current_items = st.session_state.history[start_idx:end_idx]
+
+        # 리스트 헤더
+        h1, h2, h3, h4, h5, h6, h7, h8 = st.columns([1, 1, 1, 1, 2, 1.5, 2, 1])
         h1.markdown("**사용자**")
         h2.markdown("**일시**")
         h3.markdown("**API**")
         h4.markdown("**저장소**")
         h5.markdown("**대상 링크**")
-        h6.markdown("**다운로드**")
+        h6.markdown("**비밀번호**")
+        h7.markdown("**다운로드**")
+        h8.markdown("**삭제**")
         
-        for item in st.session_state.history:
+        # 항목 출력
+        for item in current_items:
             st.markdown("<hr style='margin: 0.5em 0;'>", unsafe_allow_html=True)
-            c1, c2, c3, c4, c5, c6 = st.columns([1, 1.5, 1.5, 1, 4, 2])
+            c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1, 1, 1, 1, 2, 1.5, 2, 1])
             
             with c1: st.write(f"👤 {item['user']}")
             with c2: st.caption(item['time'])
             with c3: st.caption(item['api'])
             with c4: st.write(item['platform'])
             with c5: 
-                short_link = item['link'][:50] + "..." if len(item['link']) > 50 else item['link']
+                short_link = item['link'][:30] + "..." if len(item['link']) > 30 else item['link']
                 st.caption(f"[{short_link}]({item['link']})")
             
+            # 💡 다운로드 & 삭제를 위한 비밀번호 검증
             with c6:
-                btn_col1, btn_col2 = st.columns(2)
-                btn_col1.download_button("🌐 HTML", data=item['html'], file_name=f"Report_{item['id']}.html", mime="text/html", key=f"h_{item['id']}", use_container_width=True)
-                if item['excel']:
-                    btn_col2.download_button("📊 Excel", data=item['excel'], file_name=f"TC_{item['id']}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"e_{item['id']}", use_container_width=True)
+                input_pw = st.text_input("PW", type="password", key=f"pw_{item['id']}", label_visibility="collapsed", placeholder="비밀번호 입력")
+                
+            is_unlocked = (input_pw == item['password'] or input_pw == SUPER_PASSWORD)
+            
+            with c7:
+                if is_unlocked:
+                    btn_col1, btn_col2 = st.columns(2)
+                    btn_col1.download_button("🌐 HTML", data=item['html'], file_name=f"Report_{item['id']}.html", mime="text/html", key=f"h_{item['id']}", use_container_width=True)
+                    if item['excel']:
+                        btn_col2.download_button("📊 엑셀", data=item['excel'], file_name=f"TC_{item['id']}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"e_{item['id']}", use_container_width=True)
                 else:
-                    btn_col2.button("⚠️ 실패", disabled=True, key=f"err_{item['id']}", use_container_width=True)
+                    if input_pw:
+                        st.error("불일치")
+                    else:
+                        st.caption("🔒 잠김")
+
+            with c8:
+                if is_unlocked:
+                    if st.button("🗑️ 삭제", key=f"del_{item['id']}", type="secondary", use_container_width=True):
+                        st.session_state.history = [x for x in st.session_state.history if x['id'] != item['id']]
+                        st.rerun()
+                else:
+                    st.button("🗑️ 삭제", key=f"del_dis_{item['id']}", disabled=True, use_container_width=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # 💡 페이징 컨트롤 (하단)
+        if total_pages > 1:
+            p1, p2, p3 = st.columns([1, 3, 1])
+            with p1:
+                if st.button("◀ 이전", use_container_width=True, disabled=(st.session_state.current_page == 1)):
+                    st.session_state.current_page -= 1
+                    st.rerun()
+            with p2:
+                st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>{st.session_state.current_page} / {total_pages} 페이지</b></div>", unsafe_allow_html=True)
+            with p3:
+                if st.button("다음 ▶", use_container_width=True, disabled=(st.session_state.current_page == total_pages)):
+                    st.session_state.current_page += 1
+                    st.rerun()
 
 elif selected_menu == "📝 기획서-코드 검증기":
     st.title("📝 기획서-코드 검증기")
