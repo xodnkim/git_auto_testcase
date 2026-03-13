@@ -92,7 +92,7 @@ if selected_menu == "🚀 GitLab QA 리스크 분석기":
         st.markdown("**프로젝트 도메인이나 분석 목적에 맞는 맞춤형 QA 지시문을 작성해보세요.**")
         
         # 실무 예시 제공 및 복사 기능
-        with st.expander("💡 딴딴 사수의 실무 프롬프트 예시 (클릭해서 확인 및 복사)"):
+        with st.expander("💡 프롬프트 예시 (클릭해서 확인 및 복사)"):
             st.info("우측 상단의 📋 복사 버튼을 눌러 아래 입력창에 붙여넣기 하세요.")
             st.code(EXAMPLE_PROMPT, language="markdown")
             
@@ -144,3 +144,4 @@ elif selected_menu == "📝 기획서-코드 검증기":
 elif selected_menu == "🛅 TC 자동 생성기":
     st.title("🛅 TC 자동 생성기")
     st.info("이 기능은 현재 개발 중입니다. (기획/코드를 바탕으로 테스트 케이스 초안을 자동 생성합니다.)")
+
