@@ -5,19 +5,19 @@ from services.ai_service import analyze_code
 
 st.set_page_config(page_title="딴딴의 여러가지 툴", page_icon="💊", layout="wide")
 
-# --- 🎨 CSS 마법: 촌스러운 라디오 버튼을 '알약'으로 변신 ---
+# --- 🎨 CSS 마법: 사이드바(LNB)에만 알약 스타일 적용 ---
 st.markdown("""
 <style>
-    /* 1. 라디오 버튼의 기본 동그라미 아이콘 숨기기 */
-    div[role="radiogroup"] > label > div:first-child {
+    /* 1. 사이드바 영역의 라디오 버튼 동그라미만 숨기기 */
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label > div:first-child {
         display: none;
     }
     
-    /* 2. 알약 모양(Pill) 박스 디자인 적용 */
-    div[role="radiogroup"] > label {
+    /* 2. 사이드바 라디오 버튼을 알약(Pill) 모양으로 만들기 */
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label {
         background-color: #ffffff;
         border: 2px solid #f0f2f6;
-        border-radius: 50px !important; /* 핵심: 완전한 반원 형태 */
+        border-radius: 50px !important;
         padding: 12px 20px;
         margin-bottom: 12px;
         cursor: pointer;
@@ -26,28 +26,29 @@ st.markdown("""
         width: 100%;
     }
     
-    /* 3. 마우스 호버(Hover) 시 살짝 떠오르는 효과 */
-    div[role="radiogroup"] > label:hover {
+    /* 3. 마우스 올렸을 때 효과 */
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
         border-color: #4A90E2;
         background-color: #F0F8FF;
         transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     
-    /* 4. 선택된(Checked) 메뉴의 강조 효과 (음영 및 색상 반전) */
-    div[role="radiogroup"] > label[aria-checked="true"] {
-        background-color: #4A90E2; /* 진한 파란색 배경 */
-        border-color: #4A90E2;
+    /* 4. 🎯 선택된 메뉴 음영 효과 (Streamlit 구조에 맞춘 :has 선택자 활용) */
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(div[aria-checked="true"]),
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) {
+        background-color: #4A90E2 !important;
+        border-color: #4A90E2 !important;
     }
     
-    /* 선택된 텍스트 색상 변경 (흰색) 및 볼드 처리 */
-    div[role="radiogroup"] > label[aria-checked="true"] p {
+    /* 선택된 메뉴 글씨 하얗고 굵게 */
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(div[aria-checked="true"]) p,
+    section[data-testid="stSidebar"] div[role="radiogroup"] > label:has(input:checked) p {
         color: white !important;
-        font-weight: 700;
+        font-weight: 700 !important;
     }
     
-    /* 텍스트 가운데 정렬 */
-    div[role="radiogroup"] p {
+    /* 글자 가운데 정렬 */
+    section[data-testid="stSidebar"] div[role="radiogroup"] p {
         font-size: 16px;
         margin: 0;
         text-align: center;
@@ -59,9 +60,8 @@ st.markdown("""
 # --- 🗂️ LNB (사이드바) ---
 with st.sidebar:
     st.title("🛠️ 딴딴의 여러가지 툴")
-    st.markdown("<br>", unsafe_allow_html=True) # 약간의 여백
+    st.markdown("<br>", unsafe_allow_html=True) 
     
-    # 텍스트 앞에 이모지를 넣어주면 알약 안에서 아이콘처럼 보입니다.
     selected_menu = st.radio(
         "메뉴 선택",
         ["🚀 GitLab QA 리스크 분석기", "📝 기획서-코드 검증기", "🛅 TC 자동 생성기"],
@@ -72,13 +72,13 @@ with st.sidebar:
 if selected_menu == "🚀 GitLab QA 리스크 분석기":
     st.title("🛡️ GitLab QA 리스크 분석기")
 
-    # [A] 모델 자동 탐색 세팅 (Zero-Click)
+    # [A] 모델 자동 탐색 세팅 (본문은 원래 라디오 버튼으로 정상 출력됨)
     with st.container(border=True):
         st.subheader("⚙️ 분석 엔진 설정")
         col1, col2, col3 = st.columns([1, 2, 2])
         
         with col1:
-            # 여기 있는 라디오 버튼은 LNB CSS에 영향받지 않도록 horizontal로 배치
+            # CSS가 사이드바로 한정되었으므로, 여기는 기본 라디오 버튼으로 나옵니다.
             ai_provider = st.radio("AI 선택", ["Gemini", "ChatGPT", "Claude"], horizontal=True) 
         with col2:
             api_key = st.text_input(f"{ai_provider} API Key", type="password")
@@ -107,7 +107,6 @@ if selected_menu == "🚀 GitLab QA 리스크 분석기":
             st.error(diffs)
             st.stop()
 
-        # 모델 선택 없이 알아서 척척 실행
         with st.spinner(f"{ai_provider}가 최적의 모델을 탐색하여 분석 중입니다..."):
             result, used_model, error = analyze_code(ai_provider, api_key, commits, diffs)
             
