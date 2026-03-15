@@ -247,9 +247,93 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
         st.markdown("보고서뿐만 아니라, **실제 QA 실무에서 사용하는 9열 포맷(Depth, 상세, 사전조건 등)**이 서식까지 완벽하게 적용된 엑셀 파일로 자동 생성됩니다.")
         st.image("step4.png", use_container_width=True)
 
-elif selected_menu == "📝 2번째 프로젝트":
-    st.title("📝 2번째 프로젝트")
-    st.info("이 기능은 현재 개발 중입니다.")
+# 사이드바 메뉴 이름부터 이렇게 바꿔주세요!
+# selected_menu = st.radio("메뉴 선택", ["🚀 QA 리스크 분석 및 TC 생성 툴", "📋 Jira 테스트 계획서 생성기", "🛅 3번째 프로젝트"], label_visibility="collapsed")
+
+elif selected_menu == "📋 Jira 테스트 계획서 생성기":
+    st.title("📋 Jira 테스트 계획서 (Test Plan) 자동 생성기")
+    st.info("💡 실무 표준 템플릿을 제공합니다. 빈칸을 채우고 항목을 추가하여 지라(Jira) 티켓에 복사/붙여넣기 하세요!")
+
+    # 사용자 정의 항목 개수를 관리하기 위한 세션 상태
+    if 'custom_sec_count' not in st.session_state:
+        st.session_state.custom_sec_count = 0
+
+    with st.container(border=True):
+        st.subheader("1️⃣ 기본 템플릿 작성")
+        
+        c1, c2 = st.columns(2)
+        project_name = c1.text_input("🚀 프로젝트/기능명", placeholder="예: 장바구니 UI 개편 및 결제 수단 추가")
+        qa_manager = c2.text_input("👤 담당 QA", placeholder="예: 홍길동")
+        
+        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+        
+        overview = st.text_area("📝 기능 개요 (Overview)", placeholder="이번 업데이트의 주요 목적과 기획 의도를 간략히 적어주세요.")
+        
+        c3, c4 = st.columns(2)
+        in_scope = c3.text_area("🎯 테스트 포함 범위 (In-Scope)", placeholder="- 장바구니 상품 담기/삭제\n- 신용카드 결제 연동\n- 비회원 주문 로직")
+        out_scope = c4.text_area("🚫 테스트 제외 범위 (Out-of-Scope)", placeholder="- 카카오페이 결제 (다음 스프린트)\n- 마이페이지 UI (변경 없음)")
+        
+        c5, c6 = st.columns(2)
+        environment = c5.text_area("💻 테스트 환경 (Environment)", placeholder="- Web: Chrome, Safari (Latest)\n- Mobile: iOS 16+, Android 12+\n- Server: Staging (QA DB)")
+        risks = c6.text_area("⚠️ 리스크 및 주의사항 (Risks)", placeholder="- 결제 PG사 연동 테스트 시 반드시 테스트 카드로만 진행할 것\n- 자정(00시) 데이터 배치 작업 시간대 테스트 피할 것")
+
+        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+        st.subheader("2️⃣ 추가 항목 (Custom Sections)")
+        st.caption("회사마다 필요한 특별한 항목(예: 테스트 일정, 산출물 링크 등)이 있다면 추가하세요.")
+        
+        # 💡 [핵심 UX] '+' 버튼으로 입력 폼 동적 추가
+        if st.button("➕ 항목 추가하기", use_container_width=True):
+            st.session_state.custom_sec_count += 1
+            
+        custom_sections = []
+        for i in range(st.session_state.custom_sec_count):
+            with st.container(border=True):
+                cc1, cc2 = st.columns([1, 3])
+                c_title = cc1.text_input(f"항목 제목 #{i+1}", key=f"c_title_{i}", placeholder="예: 테스트 일정")
+                c_content = cc2.text_area(f"항목 내용 #{i+1}", key=f"c_content_{i}", placeholder="예: 2026-03-20 ~ 2026-03-25")
+                custom_sections.append((c_title, c_content))
+
+        submit_plan = st.button("✨ Jira 테스트 계획서 생성", type="primary", use_container_width=True)
+
+    # 결과 출력부
+    if submit_plan:
+        if not project_name:
+            st.warning("프로젝트/기능명을 입력해주세요!")
+            st.stop()
+            
+        st.success("✅ 테스트 계획서가 생성되었습니다! 우측 상단의 복사 아이콘을 눌러 Jira에 붙여넣으세요.")
+        
+        # 💡 Jira/Confluence에 찰떡같이 붙는 Markdown 포맷 생성
+        jira_markdown = f"""# 📋 [QA 테스트 계획서] {project_name}
+
+**담당 QA:** {qa_manager if qa_manager else '미지정'}
+**작성일자:** {datetime.datetime.now().strftime("%Y-%m-%d")}
+
+---
+
+### 🚀 1. 기능 개요 (Overview)
+{overview if overview else '내용 없음'}
+
+### 🎯 2. 테스트 대상 및 범위 (In-Scope)
+{in_scope if in_scope else '내용 없음'}
+
+### 🚫 3. 테스트 제외 대상 (Out-of-Scope)
+{out_scope if out_scope else '내용 없음'}
+
+### 💻 4. 테스트 환경 (Test Environment)
+{environment if environment else '내용 없음'}
+
+### ⚠️ 5. 리스크 및 주의사항 (Risks)
+{risks if risks else '내용 없음'}
+"""
+        # 사용자 추가 항목 이어붙이기
+        if custom_sections:
+            for idx, (t, c) in enumerate(custom_sections):
+                if t or c:
+                    jira_markdown += f"\n### 📌 {idx+6}. {t if t else '추가 항목'}\n{c if c else '내용 없음'}\n"
+
+        # 코드 블록으로 출력하여 쉽게 복사(Copy)할 수 있게 UX 구성
+        st.code(jira_markdown, language="markdown")
 
 elif selected_menu == "🛅 3번째 프로젝트":
     st.title("🛅 3번째 프로젝트")
