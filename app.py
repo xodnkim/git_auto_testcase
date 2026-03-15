@@ -246,90 +246,101 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
         st.markdown("보고서뿐만 아니라, **실제 QA 실무에서 사용하는 9열 포맷(Depth, 상세, 사전조건 등)**이 서식까지 완벽하게 적용된 엑셀 파일로 자동 생성됩니다.")
         # st.image("step4_excel.png", use_container_width=True)
 
-# ---------------------------------------------------------
-# 메뉴 2: Jira 테스트 계획서 생성기
-# ---------------------------------------------------------
-elif selected_menu == "📋 Jira 테스트 계획서 생성기":
-    st.title("📋 Jira 테스트 계획서 (Test Plan) 자동 생성기")
-    st.info("💡 실무 표준 템플릿을 제공합니다. 빈칸을 채우고 항목을 추가하여 지라(Jira) 티켓에 복사/붙여넣기 하세요!")
+# =====================================================================
+# 2️⃣ 두 번째 프로젝트: E2E 자동화 대시보드 (Demo)
+# =====================================================================
+elif selected_menu == "📊 E2E 자동화 대시보드 (Demo)":
+    st.title("📊 E2E 테스트 자동화 대시보드")
+    st.info("💡 **[포트폴리오 데모용]** 실제 Playwright 기반 자동화 테스트가 어떻게 리포팅되는지 확인하고, 직접 값을 변경하여 예외(Fail) 케이스를 유도해 볼 수 있는 인터랙티브 대시보드입니다.")
 
-    if 'custom_sec_count' not in st.session_state:
-        st.session_state.custom_sec_count = 0
+    tab_dash, tab_practice = st.tabs(["📈 종합 결과 리포트", "🧪 인터랙티브 테스트 체험"])
 
-    with st.container(border=True):
-        st.subheader("1️⃣ 기본 템플릿 작성")
+    # --- 탭 1: 종합 결과 리포트 (정적 대시보드) ---
+    with tab_dash:
+        st.subheader("최근 테스트 실행 결과 (Latest Run)")
+        # 💡 시간과 환경 등은 원하시는 대로 텍스트를 수정하시면 됩니다!
+        st.caption("실행 일시: 2026-03-16 09:00 KST | 소요 시간: 12m 45s | 환경: Staging")
         
-        c1, c2 = st.columns(2)
-        project_name = c1.text_input("🚀 프로젝트/기능명", placeholder="예: 장바구니 UI 개편 및 결제 수단 추가")
-        qa_manager = c2.text_input("👤 담당 QA", placeholder="예: 홍길동")
-        
-        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
-        
-        overview = st.text_area("📝 기능 개요 (Overview)", placeholder="이번 업데이트의 주요 목적과 기획 의도를 간략히 적어주세요.")
-        
-        c3, c4 = st.columns(2)
-        in_scope = c3.text_area("🎯 테스트 포함 범위 (In-Scope)", placeholder="- 장바구니 상품 담기/삭제\n- 신용카드 결제 연동\n- 비회원 주문 로직")
-        out_scope = c4.text_area("🚫 테스트 제외 범위 (Out-of-Scope)", placeholder="- 카카오페이 결제 (다음 스프린트)\n- 마이페이지 UI (변경 없음)")
-        
-        c5, c6 = st.columns(2)
-        environment = c5.text_area("💻 테스트 환경 (Environment)", placeholder="- Web: Chrome, Safari (Latest)\n- Mobile: iOS 16+, Android 12+\n- Server: Staging (QA DB)")
-        risks = c6.text_area("⚠️ 리스크 및 주의사항 (Risks)", placeholder="- 결제 PG사 연동 테스트 시 반드시 테스트 카드로만 진행할 것\n- 자정(00시) 데이터 배치 작업 시간대 테스트 피할 것")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("총 테스트 케이스", "142 개")
+        m2.metric("✅ Passed", "138 개", "97.1%")
+        m3.metric("❌ Failed", "3 개", "-2.9%")
+        m4.metric("⚠️ Flaky (불안정)", "1 개")
 
-        st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
-        st.subheader("2️⃣ 추가 항목 (Custom Sections)")
-        st.caption("회사마다 필요한 특별한 항목(예: 테스트 일정, 산출물 링크 등)이 있다면 추가하세요.")
-        
-        # 💡 수정: use_container_width=True -> width="stretch"
-        if st.button("➕ 항목 추가하기", width="stretch"):
-            st.session_state.custom_sec_count += 1
-            
-        custom_sections = []
-        for i in range(st.session_state.custom_sec_count):
-            with st.container(border=True):
-                cc1, cc2 = st.columns([1, 3])
-                c_title = cc1.text_input(f"항목 제목 #{i+1}", key=f"c_title_{i}", placeholder="예: 테스트 일정")
-                c_content = cc2.text_area(f"항목 내용 #{i+1}", key=f"c_content_{i}", placeholder="예: 2026-03-20 ~ 2026-03-25")
-                custom_sections.append((c_title, c_content))
+        st.markdown("<hr style='margin: 1em 0;'>", unsafe_allow_html=True)
 
-        # 💡 수정: use_container_width=True -> width="stretch"
-        submit_plan = st.button("✨ Jira 테스트 계획서 생성", type="primary", width="stretch")
+        st.markdown("### 🚨 주요 실패(Failed) 내역 분석")
+        # 💡 expander 안의 텍스트를 회사 도메인에 맞게 수정하시면 됩니다.
+        with st.expander("❌ [결제 도메인] TC-089: 포인트 전액 결제 시 PG창 호출 스킵 여부 (클릭하여 상세 보기)", expanded=True):
+            st.error("**[AssertionError]** 예상결과: PG 결제창이 호출되지 않아야 함. / 실제결과: PG창 팝업이 렌더링됨.")
+            st.code("""
+# Playwright Traceback Log
+> page.click('button#submit-order')
+> expect(page.locator('#pg-iframe')).not_to_be_visible(timeout=5000)
+E AssertionError: Locator expected to be hidden, but is visible.
+            """, language="python")
+            # 가짜 다운로드 버튼 (실제 파일 연결은 추후 필요시 추가)
+            st.button("📄 상세 HTML 리포트 다운로드 (Sample)", key="download_mock_1")
 
-    if submit_plan:
-        if not project_name:
-            st.warning("프로젝트/기능명을 입력해주세요!")
-            st.stop()
-            
-        st.success("✅ 테스트 계획서가 생성되었습니다! 우측 상단의 복사 아이콘을 눌러 Jira에 붙여넣으세요.")
-        
-        jira_markdown = f"""# 📋 [QA 테스트 계획서] {project_name}
+        with st.expander("❌ [게시글 도메인] TC-033: 50MB 초과 이미지 첨부 시 예외 처리"):
+            st.error("**[TimeoutError]** 용량 초과 경고 모달이 10초 이내에 나타나지 않고 무한 로딩 발생.")
 
-**담당 QA:** {qa_manager if qa_manager else '미지정'}
-**작성일자:** {datetime.datetime.now().strftime("%Y-%m-%d")}
+        with st.expander("❌ [로그인 도메인] TC-012: 휴면 계정 로그인 시 안내 모달 노출 여부"):
+            st.error("**[AssertionError]** 휴면 해제 안내 모달 대신 '비밀번호 5회 오류' 모달이 잘못 노출됨.")
 
----
+    # --- 탭 2: 인터랙티브 테스트 체험 (동적 Mock 실행) ---
+    with tab_practice:
+        st.subheader("🧪 Playwright 테스트 실행기 (Interactive Mode)")
+        st.markdown("사용자가 입력한 값에 따라 **미리 정의된 자동화 스크립트**가 어떻게 반응(Pass/Fail)하는지 확인해 보세요.")
 
-### 🚀 1. 기능 개요 (Overview)
-{overview if overview else '내용 없음'}
+        with st.container(border=True):
+            # 💡 테스트할 도메인을 자유롭게 추가/수정하세요!
+            test_domain = st.selectbox("📌 테스트할 시나리오 선택", ["🛒 장바구니 및 결제 로직 검증", "🔐 로그인 및 인증 로직 검증"])
+            st.markdown("<br>", unsafe_allow_html=True)
 
-### 🎯 2. 테스트 대상 및 범위 (In-Scope)
-{in_scope if in_scope else '내용 없음'}
+            # 1. 결제 로직 시나리오
+            if test_domain == "🛒 장바구니 및 결제 로직 검증":
+                st.markdown("**[테스트 설명]** 상품을 장바구니에 담고 결제를 시도합니다. 결제 금액은 0원보다 커야 하며, 재고가 있어야 합니다.")
+                c1, c2 = st.columns(2)
+                test_amount = c1.number_input("입력할 결제 금액 (원)", value=50000, step=1000)
+                test_stock = c2.selectbox("상품 재고 상태", ["재고 있음", "품절 (Out of Stock)"])
 
-### 🚫 3. 테스트 제외 대상 (Out-of-Scope)
-{out_scope if out_scope else '내용 없음'}
+                if st.button("▶️ 테스트 스크립트 실행", type="primary", key="run_pay", width="stretch"):
+                    with st.spinner("Playwright 브라우저 인스턴스 시작 중... (가상 환경)"):
+                        time.sleep(1.5) # 💡 진짜 돌아가는 것 같은 로딩 효과
+                        
+                        # 예외 처리 로직 (미리 정의된 결과)
+                        if test_stock == "품절 (Out of Stock)":
+                            st.error("🚨 **[Failed]** TC-044: 품절 상품 결제 시도 방어 로직 검증")
+                            st.code("AssertionError: '품절된 상품입니다' 알림창이 노출되지 않고 결제 단계로 진입함.", language="text")
+                        elif test_amount <= 0:
+                            st.error("🚨 **[Failed]** TC-045: 비정상 결제 금액(0원 이하) 방어 로직 검증")
+                            st.code(f"Error: API 응답 코드 500 발생. (요청 금액: {test_amount}원)\n프론트엔드에서 0원 이하 입력을 차단하지 못했습니다.", language="text")
+                        else:
+                            st.success(f"✅ **[Passed]** TC-046: 정상 결제 시나리오 (금액: {test_amount}원, 재고 있음)")
+                            st.info("실행 로그: 아이템 담기 성공 -> 결제 정보 입력 성공 -> PG사 호출 성공")
 
-### 💻 4. 테스트 환경 (Test Environment)
-{environment if environment else '내용 없음'}
+            # 2. 로그인 로직 시나리오
+            elif test_domain == "🔐 로그인 및 인증 로직 검증":
+                st.markdown("**[테스트 설명]** 사용자 ID와 비밀번호를 입력하여 로그인을 시도합니다. (올바른 비밀번호: `test1234`)")
+                c3, c4 = st.columns(2)
+                test_id = c3.text_input("아이디", value="qa_tester_01")
+                test_pw = c4.text_input("비밀번호 (일부러 틀리게 적어보세요!)", value="test1234", type="password")
 
-### ⚠️ 5. 리스크 및 주의사항 (Risks)
-{risks if risks else '내용 없음'}
-"""
-        if custom_sections:
-            for idx, (t, c) in enumerate(custom_sections):
-                if t or c:
-                    jira_markdown += f"\n### 📌 {idx+6}. {t if t else '추가 항목'}\n{c if c else '내용 없음'}\n"
+                if st.button("▶️ 테스트 스크립트 실행", type="primary", key="run_login", width="stretch"):
+                    with st.spinner("UI 상호작용 및 API 응답 대기 중..."):
+                        time.sleep(1.2)
+                        
+                        if test_pw == "test1234":
+                            st.success("✅ **[Passed]** TC-001: 유효한 자격 증명으로 로그인 성공")
+                            st.info(f"실행 로그: '{test_id}' 입력 -> '{test_pw}' 입력 -> 메인 대시보드로 라우팅 됨.")
+                        else:
+                            st.error("🚨 **[Failed]** TC-002: 잘못된 비밀번호 입력 시 예외 처리 검증")
+                            st.code("AssertionError: '비밀번호가 일치하지 않습니다' Toast 메시지가 노출되어야 하나, 무한 로딩(Spinner) 상태에 빠짐.", language="text")
 
-        st.code(jira_markdown, language="markdown")
-
+# =====================================================================
+# 3️⃣ 세 번째 프로젝트 (미정)
+# =====================================================================
 elif selected_menu == "🛅 3번째 프로젝트":
     st.title("🛅 3번째 프로젝트")
-    st.info("이 기능은 현재 개발 중입니다.")
+    st.info("이 기능은 현재 기획/개발 중입니다.")
