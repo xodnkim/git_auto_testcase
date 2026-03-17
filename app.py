@@ -200,16 +200,17 @@ if selected_menu == "🚀 QA 리스크 분석 및 TC 생성 툴":
         st.subheader("💡 1분 데모 워크스루")
         st.info("API 키나 토큰이 없으신 분들을 위해 실제 구동 화면을 캡처하여 제공합니다. 아래 순서대로 툴이 동작합니다.")
         st.markdown("### 1️⃣ Step 1. 분석 대상 및 환경 설정")
-        # st.image("step1_input.png") 
+        st.image("step1_1.png") 
+        st.image("step1.png") 
         st.divider()
         st.markdown("### 2️⃣ Step 2. AI 분석 완료 및 히스토리 누적")
-        # st.image("step2_dashboard.png")
+        st.image("step2.png")
         st.divider()
         st.markdown("### 3️⃣ Step 3. QA 리스크 보고서 확인 (HTML)")
-        # st.image("step3_html.png")
+        st.image("step3.png")
         st.divider()
         st.markdown("### 4️⃣ Step 4. 엑셀 테스트케이스(TC) 확인")
-        # st.image("step4_excel.png")
+        st.image("step4.png")
 
 
 # =====================================================================
